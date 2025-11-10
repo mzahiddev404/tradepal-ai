@@ -1,0 +1,101 @@
+Context with MCP
+Learning Objectives
+• Understand the purpose of the Model Context Protocol
+(MCP) and how it enables Cursor IDE’s AI to interact
+securely with external tools, data sources, and services.
+• Learn how MCP enhances contextual awareness,
+streamlines workflows, and allows secure data access
+within the IDE.
+• Gain knowledge of MCP transport methods, including stdio,
+SSE, and Streamable HTTP, and when to use each.
+• Explore methods for installing and configuring MCP servers
+manually, via JSON, or using the MCP Tools Directory.
+• Understand authentication and tool management, including
+how the Composer Agent interacts with MCP tools and
+approval workflows.
+Description
+The Model Context Protocol (MCP) is an open-source,
+standardized framework introduced by Anthropic in
+November 2024. It enables large language models (LLMs)
+like Cursor's AI to securely interact with external tools,
+data sources, and services. MCP facilitates bidirectional
+communication, allowing AI assistants to access and
+manipulate data in real-time, thereby enhancing their
+contextual understanding and capabilities.
+Integrating MCP with Cursor IDE oﬀers several
+advantages:
+• Enhanced Contextual Awareness: By connecting to external
+systems, Cursor's AI can access up-to-date information,
+documentation, and codebases, leading to more accurate
+and relevant suggestions.
+• Streamlined Workflows: MCP enables automation of
+repetitive tasks, such as code generation, testing, and
+deployment, directly from the IDE.
+• Secure Data Access: MCP supports secure connections,
+ensuring that sensitive data remains protected while being
+accessible to the AI assistant.
+• Custom Integrations: Developers can create custom MCP
+servers to connect Cursor to proprietary systems,
+databases, or APIs, tailoring the AI's capabilities to specific
+project needs.
+How MCP Works
+MCP servers expose capabilities through the protocol,
+connecting Cursor to external tools or data sources.
+Cursor supports three transport methods:
+•
+stdio: Local execution; Cursor manages a single-user
+shell command manually.
+•
+SSE: Local/Remote execution; deploy as a server for
+multiple users with a URL to an SSE endpoint and OAuth
+authentication.
+•
+Streamable HTTP: Local/Remote execution; deploy as
+a server for multiple users with a URL to an HTTP endpoint
+and OAuth authentication.
+Instructions
+One-Click Installation
+1. Browse the MCP Tools Directory.
+2. Select the desired tool.
+3. Click "Install" to add it to Cursor.
+Manual Installation
+1. Open Cursor Settings (Ctrl+Shift+J).
+2. Navigate to Tools & Integrations.
+3. Click New MCP Server.
+4. Configure the server with the necessary details.
+Using mcp.json
+Configure custom MCP servers with a JSON file:
+{
+"mcpServers": {
+"server-name": {
+"command": "npx",
+"args": ["-y", "mcp-server"],
+"env": {
+"API_KEY": "value"
+}
+}
+}
+}
+This configuration can be placed in your project-
+specific .cursor/mcp.json or globally in ~/.cursor/
+mcp.json.
+Authentication
+MCP servers use environment variables for
+authentication. Pass API keys and tokens through the
+config. Cursor supports OAuth for servers that require it.
+Using MCP in Chat
+• Automatic Tool Usage: The Composer Agent
+automatically uses MCP tools listed under Available
+Tools when relevant.
+• Manual Tool Invocation: Ask for a specific tool by name
+or describe what you need.
+• Tool Management: Enable or disable tools from
+settings. Disabled tools won’t be loaded into context or
+available to the Agent.
+Tool Approval
+By default, the Agent asks for approval before using MCP
+tools. Click the arrow next to the tool name to see
+arguments.
+References
+https://docs.cursor.com/en/tools/mcp https://docs.cursor.com/
+en/context/mcp

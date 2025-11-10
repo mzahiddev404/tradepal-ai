@@ -1,0 +1,131 @@
+Java Script and Python on Workflow
+Learning Objectives
+• Understand how JavaScript and Python can be integrated
+into n8n workflows.
+• Learn how function nodes in n8n enable custom data
+manipulation and logic.
+• Explore use cases where scripting improves flexibility and
+eﬃciency.
+• Gain practical knowledge to implement custom
+transformations, calculations, and API interactions.
+• Learn best practices for testing and maintaining scripts
+within workflows.
+Description
+Why Use JavaScript and Python in n8n
+Workflows?
+While n8n provides a wide range of pre-built nodes for
+common tasks, there are scenarios where built-in nodes
+may not fully meet your needs. JavaScript (via Function
+nodes) and Python (via external code execution nodes)
+allow you to add custom logic, transform data, or perform
+complex calculations.
+Using scripting within workflows increases flexibility,
+enabling you to:
+• Modify or restructure data before passing it to other nodes.
+• Implement custom conditions or loops beyond what
+standard conditional nodes allow.
+• Interact with APIs or perform calculations dynamically
+based on workflow inputs.
+• Automate tasks that require domain-specific logic.
+JavaScript in n8n Workflows
+JavaScript is directly supported in n8n through Function
+and Function Item nodes.
+• Function Node: Executes code once using all input data
+collectively. Ideal for global transformations or aggregations.
+• Function Item Node: Executes code separately on each
+incoming item, useful for batch operations or per-record
+processing.
+Key capabilities include:
+• Transforming JSON data structures.
+• Concatenating or formatting text dynamically.
+• Performing arithmetic, date, or string operations.
+• Handling conditional logic and loops for complex workflows.
+These nodes provide a lightweight, eﬃcient way to
+introduce custom behavior without leaving the n8n
+environment.
+Python in n8n Workflows
+Python is supported via Execute Command or Execute
+Python Code nodes (if using Python extensions or
+external execution). Python is particularly useful for:
+• Performing scientific, statistical, or AI/ML tasks within
+workflows.
+• Accessing Python libraries for data analysis, NLP, or API
+interactions.
+• Processing complex datasets or generating reports that
+require Python’s capabilities.
+Python nodes allow integration of external scripts and
+packages, bridging n8n workflows with the Python
+ecosystem.
+Best Practices for Scripting in Workflows
+• Keep Code Modular: Use separate function nodes for
+distinct logic blocks to maintain clarity.
+• Test Independently: Validate scripts outside of the workflow
+to ensure correctness before integrating.
+• Error Handling: Include try/catch blocks and logging to
+handle exceptions gracefully.
+• Data Validation: Ensure inputs and outputs are in expected
+formats to prevent downstream failures.
+• Reuse Functions: Store commonly used scripts in separate
+nodes or external libraries to reduce duplication.
+Applying these practices ensures that custom scripts
+enhance workflows without introducing errors or
+maintenance challenges.
+Real-World Applications
+• Data Transformation: Convert CSV or JSON data to a
+required format before inserting into a database.
+• Custom API Calls: Generate dynamic API requests based on
+input data and workflow conditions.
+• Text Processing: Extract, clean, or summarize text using
+JavaScript string methods or Python NLP libraries.
+• Calculations and Reporting: Compute metrics or aggregate
+values across multiple records.
+• AI Integration: Pre-process inputs or post-process LLM/AI
+outputs before sending results downstream.
+These scenarios demonstrate how scripting extends the
+flexibility of n8n beyond standard node capabilities.
+Analogy
+Using JavaScript and Python in workflows is like adding a
+custom tool to a toolbox. While most tasks can be done
+with standard hammers, screwdrivers, or wrenches (pre-
+built nodes), some jobs require a specialized tool that fits
+precisely. Function nodes and Python scripts act as that
+specialized tool, enabling you to handle unique or
+complex tasks eﬃciently without building an entirely new
+system.
+Key Points
+• JavaScript is supported via Function and Function Item
+nodes for inline workflow scripting.
+• Python can be integrated through Execute Python or
+external script nodes.
+• Custom scripts allow data transformations, calculations,
+and advanced logic.
+• Keep scripts modular and well-tested to avoid workflow
+errors.
+• Use error handling and logging for maintainable workflows.
+• Validate input and output formats to ensure downstream
+compatibility.
+• Scripts enable AI/ML integration, custom API interactions,
+and complex processing.
+• Reuse and organize scripts for consistency and eﬃciency
+across workflows.
+• Scripting enhances flexibility without replacing the core
+node-based workflow system.
+Instructions
+Now that you have learned these things, now try doing
+something like this:
+1. Add a Function node – In an existing workflow, add a
+Function node to transform JSON input.
+2. Write JavaScript logic – For example, combine
+multiple fields, calculate totals, or filter items.
+3. Test JavaScript execution – Run the workflow and
+verify the output of the Function node.
+4. Add Python node – If available, execute a Python
+node to perform calculations or manipulate data.
+5. Validate results – Compare input and output to
+ensure transformations are correct.
+6. Experiment with conditions – Use scripts to create
+conditional branching based on computed values or
+text patterns.
+References
+https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-
+base.code/

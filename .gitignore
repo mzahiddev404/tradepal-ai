@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.Python
+
+# Environment
+.env
+.env.local
+.env*.local
+venv/
+env/
+
+# Next.js
+.next/
+out/
+.vercel
+
+# Build outputs
+dist/
+build/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+.coverage
+*.cover
+.pytest_cache/
+
+# Database
+*.db
+*.sqlite
+chroma_db/
+
+
+
+
+

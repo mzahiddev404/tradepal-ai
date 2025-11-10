@@ -1,0 +1,140 @@
+Versioning & Sharing
+Learning Objectives
+• Understand how version control works for n8n workflows.
+• Learn how to save, track, and revert workflow versions
+safely.
+• Explore methods for sharing workflows within teams or
+across environments.
+• Gain practical knowledge of collaboration features and
+workflow export/import.
+• Recognize best practices for maintaining workflow
+consistency and reducing errors.
+Description
+Why Versioning Matters
+Versioning in n8n allows you to keep track of changes
+made to workflows over time. Each version captures the
+workflow’s structure, nodes, and connections, enabling
+you to revert to a previous state if errors or issues arise.
+Key benefits of versioning include:
+• Error Recovery: Restore a previous workflow version if a
+recent change breaks execution.
+• Change Tracking: Understand what modifications were
+made, when, and by whom.
+• Experimentation: Safely test new logic or nodes without
+aﬀecting production workflows.
+• Auditability: Maintain a record of workflow evolution for
+compliance or documentation purposes.
+Versioning is essential for both individual developers and
+collaborative teams managing multiple workflows
+simultaneously.
+Creating and Managing Workflow Versions
+n8n allows you to manage workflow versions easily
+through its interface:
+• Active vs Draft Versions: Keep an active version running
+while creating draft updates.
+• Manual Versioning: Save snapshots of a workflow at key
+stages, labeling them for easy identification.
+• Automatic Backups: Some setups support automatic
+backups of workflows, providing an extra layer of safety.
+• Reverting Versions: Restore a previous version quickly if
+new changes cause errors or unintended behavior.
+This structured approach ensures workflows remain
+stable while allowing iterative improvement.
+Sharing Workflows
+n8n workflows can be shared between users, teams, or
+environments without exposing sensitive data:
+• Export/Import: Workflows can be exported as JSON files
+and imported into another n8n instance. This is ideal for
+migrating workflows between development, staging, and
+production.
+• Credential Separation: Credentials are not included in
+exported workflows, ensuring sensitive information remains
+secure. Shared workflows can be configured with
+environment-specific credentials.
+• Team Collaboration: Multiple users can collaborate on
+workflows in a shared environment, reviewing changes
+before activating new versions.
+• Workflow Templates: Create reusable templates for common
+tasks or organizational standards, speeding up onboarding
+and workflow creation.
+Sharing workflows eﬃciently encourages reuse,
+consistency, and collaboration across teams.
+Best Practices for Versioning and Sharing
+• Label Versions Clearly: Use descriptive version names or
+numbers to easily identify workflow changes.
+• Test Draft Versions: Always validate a draft workflow before
+activating it in production.
+• Maintain a Change Log: Keep a brief note of what was
+changed, why, and by whom for each version.
+• Use Templates for Reuse: Standardize workflows for
+common tasks and share them as templates to ensure
+consistency.
+• Separate Environments: Use development, staging, and
+production instances to test workflows safely before
+deployment.
+Implementing these practices reduces errors, simplifies
+collaboration, and ensures that workflows evolve in a
+controlled and reliable manner.
+Real-World Applications
+• Team Collaboration: Multiple developers working on
+automation projects can track changes and avoid conflicts.
+• Migration Across Environments: Move workflows from
+development to production without manually recreating
+nodes or connections.
+• Experimentation and Rollback: Test new automation logic
+safely, with the ability to revert if something breaks.
+• Knowledge Sharing: Distribute workflow templates within
+the organization to standardize processes.
+• Audit and Compliance: Maintain versioned records of
+workflows for regulatory or internal audit purposes.
+Versioning and sharing ensure workflows remain robust,
+maintainable, and scalable in collaborative or enterprise
+environments.
+Analogy
+Versioning and sharing in n8n is like managing drafts of a
+collaborative document in a team. Each draft saves
+changes made by diﬀerent people, allowing anyone to
+revert to an earlier version if needed. Sharing workflows is
+similar to exporting that document to another team
+member without sharing personal notes (credentials),
+ensuring the core content is usable while keeping
+sensitive information private.
+Key Points
+• Versioning tracks workflow changes and allows rollback if
+errors occur.
+• Active and draft workflow versions enable safe updates
+without disrupting live workflows.
+• Manual or automatic versioning provides snapshots and
+backup options.
+• Workflows can be exported/imported as JSON files for
+sharing or migration.
+• Credentials are excluded in exports to maintain security.
+• Workflow templates support reuse and standardization
+across teams.
+• Clear version labeling and change logs improve
+maintainability.
+• Separate environments for dev, staging, and production
+enhance testing and reliability.
+• Sharing workflows encourages collaboration, consistency,
+and knowledge transfer.
+Instructions
+Now that you have learned these things, now try doing
+something like this:
+1. Create a new workflow – Design a workflow and save
+it as the first version.
+2. Make changes – Add new nodes or modify logic and
+save as a draft or new version.
+3. Compare versions – Review the diﬀerences between
+the active version and your draft.
+4. Revert if needed – Restore an earlier version to test
+rollback functionality.
+5. Export the workflow – Save it as a JSON file to share
+with another n8n instance.
+6. Import and test – Import the workflow in a diﬀerent
+instance and verify it functions correctly using
+environment-specific credentials.
+References
+https://docs.n8n.io/integrations/creating-nodes/build/reference/
+node-versioning/#full-versioning https://docs.n8n.io/workflows/
+history/ https://docs.n8n.io/workflows/sharing/
+Previous
