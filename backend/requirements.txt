@@ -10,11 +10,25 @@ langchain-openai==0.2.9
 langchain-community==0.3.8
 openai==1.55.3
 
+# Vector Database
+chromadb==0.5.20
+
+# PDF Processing
+pypdf2==3.0.1
+pdfplumber==0.11.4
+
+# File Handling
+python-multipart==0.0.12
+
 # Environment
 python-dotenv==1.0.1
 
 # CORS
 fastapi-cors==0.0.6
+
+# Stock Market Data
+yfinance==0.2.40
+requests==2.32.3
 
 
 
