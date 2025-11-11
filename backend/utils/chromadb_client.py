@@ -2,8 +2,14 @@
 ChromaDB client utilities for vector database operations.
 """
 import os
-import chromadb
-from chromadb.config import Settings
+try:
+    import chromadb
+    from chromadb.config import Settings
+    CHROMADB_AVAILABLE = True
+except ImportError:
+    CHROMADB_AVAILABLE = False
+    chromadb = None
+    Settings = None
 from typing import Optional, List, Dict
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
@@ -20,6 +26,9 @@ class ChromaDBClient:
         Args:
             collection_name: Name of the ChromaDB collection
         """
+        if not CHROMADB_AVAILABLE:
+            raise ImportError("ChromaDB is not installed. Please install it with: pip install chromadb")
+        
         # Set up persistent storage directory
         self.persist_directory = os.path.join(
             os.path.dirname(os.path.dirname(__file__)),
@@ -167,4 +176,5 @@ class ChromaDBClient:
 
 # Global ChromaDB client instance
 chromadb_client = ChromaDBClient()
+
 

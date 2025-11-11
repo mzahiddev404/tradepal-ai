@@ -22,3 +22,5 @@ class CollectionInfoResponse(BaseModel):
     document_count: int
     persist_directory: str
 
+
+

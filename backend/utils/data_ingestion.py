@@ -118,3 +118,5 @@ class DataIngestionPipeline:
 # Global ingestion pipeline instance
 ingestion_pipeline = DataIngestionPipeline()
 
+
+

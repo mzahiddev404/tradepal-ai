@@ -6,7 +6,12 @@ import tempfile
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from typing import Optional
 from models.upload import UploadResponse, CollectionInfoResponse
-from utils.data_ingestion import ingestion_pipeline
+try:
+    from utils.data_ingestion import ingestion_pipeline
+    INGESTION_AVAILABLE = True
+except ImportError:
+    INGESTION_AVAILABLE = False
+    ingestion_pipeline = None
 
 router = APIRouter(prefix="/api", tags=["upload"])
 
@@ -26,6 +31,11 @@ async def upload_pdf(
     Returns:
         UploadResponse with processing results
     """
+    if not INGESTION_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="PDF upload feature is not available. ChromaDB is not installed."
+        )
     try:
         # Validate file type
         if not file.filename.endswith('.pdf'):
@@ -85,6 +95,11 @@ async def get_collection_info():
     Returns:
         CollectionInfoResponse with collection statistics
     """
+    if not INGESTION_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Collection info is not available. ChromaDB is not installed."
+        )
     try:
         info = ingestion_pipeline.get_collection_stats()
         
@@ -107,4 +122,5 @@ async def get_collection_info():
             status_code=500,
             detail=f"Error getting collection info: {str(e)}"
         )
+
 
