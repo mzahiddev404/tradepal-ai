@@ -1,11 +1,17 @@
 """
 LangChain agent setup and configuration.
+
+This module provides the ChatAgent class that handles AI-powered chat interactions
+with integrated stock market data fetching capabilities.
 """
 from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage, AIMessage, SystemMessage
-from typing import List, Dict
+from typing import List, Dict, Optional, Tuple
 from core.config import settings
-from utils.stock_data import get_stock_quote
+from utils.stock_data import stock_data_service
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ChatAgent:
@@ -20,19 +26,36 @@ class ChatAgent:
             openai_api_key=settings.openai_api_key,
         )
         
+        # Get current date for context
+        from datetime import datetime
+        current_date = datetime.now().strftime("%B %d, %Y")
+        
         # System prompt for the customer service agent
-        self.system_prompt = """You are TradePal AI, a helpful customer service assistant with access to real-time stock market data.
+        self.system_prompt = f"""You are TradePal AI, a helpful customer service assistant with access to real-time stock market data.
+
+CURRENT DATE: {current_date}
+
+IMPORTANT CONTEXT:
+- While your training data may be from the past, you have access to LIVE, REAL-TIME stock market data
+- When users ask about stock prices, I will provide you with CURRENT data from today
+- You are operating in the present day: {current_date}
+- Always refer to today's date as {current_date}, not any date from your training data
 
 You help customers with:
-- Real-time stock prices and market information
+- Real-time stock prices and market information (you have LIVE access to current stock data)
 - Billing questions and pricing information
 - Technical support and troubleshooting
 - Policy inquiries and compliance questions
 
-When users ask about stock prices, use your knowledge to provide current market information.
-Popular symbols include: AAPL (Apple), TSLA (Tesla), MSFT (Microsoft), GOOGL (Google), AMZN (Amazon), SPY (S&P 500 ETF).
+STOCK DATA INSTRUCTIONS:
+When users ask about stock prices, I will provide [Real-time Stock Data] sections in messages.
+This contains ACTUAL CURRENT prices fetched live from the market.
+ALWAYS use this real-time data when provided. NEVER say you cannot access current stock prices.
+Present the data as if you're looking at it right now, because you are!
 
-Be professional, friendly, and concise in your responses."""
+Popular symbols: AAPL (Apple), TSLA (Tesla), MSFT (Microsoft), GOOGL (Google), AMZN (Amazon), SPY (S&P 500 ETF), NVDA (Nvidia), META (Meta/Facebook).
+
+Be professional, friendly, and concise in your responses. Always acknowledge the current date context when relevant."""
     
     def _format_history(self, history: List[Dict[str, str]]) -> List:
         """Convert history dict to LangChain message format."""
@@ -46,8 +69,16 @@ Be professional, friendly, and concise in your responses."""
         
         return messages
     
-    def _check_for_stock_query(self, message: str) -> tuple[bool, str]:
-        """Check if message is asking for stock information."""
+    def _check_for_stock_query(self, message: str) -> Tuple[bool, Optional[str]]:
+        """
+        Check if message is asking for stock information.
+        
+        Args:
+            message: User's message text
+            
+        Returns:
+            Tuple of (is_stock_query, symbol)
+        """
         message_lower = message.lower()
         stock_keywords = ['stock', 'price', 'ticker', 'share', 'market', 'trading', 'quote']
         
@@ -99,17 +130,28 @@ Be professional, friendly, and concise in your responses."""
         stock_context = ""
         if is_stock_query and symbol:
             try:
-                stock_data = get_stock_quote(symbol)
+                from datetime import datetime
+                current_time = datetime.now().strftime("%B %d, %Y at %I:%M %p")
+                stock_data = stock_data_service.get_stock_quote(symbol)
                 if "error" not in stock_data:
-                    stock_context = f"\n\n[Real-time Stock Data for {symbol}]\n"
-                    stock_context += f"Current Price: ${stock_data.get('price', 'N/A')}\n"
-                    stock_context += f"Change: {stock_data.get('change', 'N/A')} ({stock_data.get('change_percent', 'N/A')}%)\n"
-                    stock_context += f"Open: ${stock_data.get('open', 'N/A')} | High: ${stock_data.get('high', 'N/A')} | Low: ${stock_data.get('low', 'N/A')}\n"
-                    stock_context += f"Volume: {stock_data.get('volume', 'N/A')}\n"
+                    stock_context = f"\n\n[Real-time Stock Data for {symbol} - LIVE DATA as of {current_time}]\n"
+                    stock_context += f"THIS IS CURRENT, LIVE DATA - NOT FROM YOUR TRAINING DATA\n"
+                    stock_context += f"Data Retrieved: {current_time}\n"
+                    stock_context += f"Symbol: {symbol}\n"
                     if stock_data.get('name'):
-                        stock_context += f"Company: {stock_data['name']}\n"
+                        stock_context += f"Company Name: {stock_data['name']}\n"
+                    stock_context += f"Current Price: ${stock_data.get('current_price', 'N/A')}\n"
+                    stock_context += f"Price Change: ${stock_data.get('change', 'N/A')} ({stock_data.get('change_percent', 'N/A')}%)\n"
+                    stock_context += f"Previous Close: ${stock_data.get('previous_close', 'N/A')}\n"
+                    stock_context += f"Volume: {stock_data.get('volume', 'N/A'):,}\n"
+                    if stock_data.get('market_cap'):
+                        stock_context += f"Market Cap: ${stock_data.get('market_cap', 0):,}\n"
+                    stock_context += f"52 Week High: ${stock_data.get('high_52w', 'N/A')}\n"
+                    stock_context += f"52 Week Low: ${stock_data.get('low_52w', 'N/A')}\n"
+                    stock_context += f"\nIMPORTANT: Use this CURRENT data in your response. This is live market data from {current_time}. Do NOT refer to dates from your training data.\n"
             except Exception as e:
-                stock_context = f"\n\n[Note: Unable to fetch stock data: {str(e)}]\n"
+                logger.error(f"Error fetching stock data: {e}")
+                stock_context = f"\n\n[System Note: Unable to fetch stock data: {str(e)}. Apologize and ask them to try a different symbol.]\n"
         
         # Format conversation history
         messages = self._format_history(history)

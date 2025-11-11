@@ -73,3 +73,4 @@ If issues persist:
 2. Use Docker for ChromaDB server
 3. Contact support with error logs
 
+

@@ -1,12 +1,23 @@
 """
 FastAPI main application entry point.
+
+This module initializes and configures the FastAPI application with CORS middleware
+and routes for chat, upload, and stock market functionality.
 """
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.chat import router as chat_router
 from api.upload import router as upload_router
 from api.stock import router as stock_router
 from core.config import settings
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(
@@ -32,11 +43,18 @@ app.include_router(stock_router)
 
 @app.get("/")
 async def root():
-    """Root endpoint."""
+    """Root endpoint providing API information."""
+    logger.info("Root endpoint accessed")
     return {
         "message": "TradePal AI Backend API",
         "version": "1.0.0",
-        "status": "running"
+        "status": "running",
+        "endpoints": {
+            "chat": "/api/chat",
+            "health": "/api/health",
+            "stock_quote": "/api/stock/quote/{symbol}",
+            "market_overview": "/api/stock/market/overview"
+        }
     }
 
 

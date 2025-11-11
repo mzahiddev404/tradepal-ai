@@ -1,9 +1,15 @@
 """
 Stock market data utilities using yfinance.
+
+This module provides the StockDataService class for fetching real-time stock
+market data, options chains, and market overview information.
 """
 import yfinance as yf
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class StockDataService:
@@ -48,9 +54,10 @@ class StockDataService:
                 "timestamp": datetime.now().isoformat()
             }
         except Exception as e:
+            logger.error(f"Error fetching stock quote for {symbol}: {e}")
             return {
                 "symbol": symbol,
-                "error": str(e)
+                "error": f"Failed to fetch stock data: {str(e)}"
             }
     
     def get_options_chain(self, symbol: str, expiration: Optional[str] = None) -> Dict:
@@ -107,9 +114,10 @@ class StockDataService:
                 "timestamp": datetime.now().isoformat()
             }
         except Exception as e:
+            logger.error(f"Error fetching options chain for {symbol}: {e}")
             return {
                 "symbol": symbol,
-                "error": str(e)
+                "error": f"Failed to fetch options data: {str(e)}"
             }
     
     def get_market_overview(self) -> Dict:
@@ -144,8 +152,9 @@ class StockDataService:
                 "timestamp": datetime.now().isoformat()
             }
         except Exception as e:
+            logger.error(f"Error fetching market overview: {e}")
             return {
-                "error": str(e)
+                "error": f"Failed to fetch market data: {str(e)}"
             }
     
     def get_multiple_quotes(self, symbols: List[str]) -> List[Dict]:
