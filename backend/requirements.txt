@@ -30,6 +30,9 @@ fastapi-cors==0.0.6
 yfinance==0.2.40
 requests==2.32.3
 
+# PDF Generation (for mock data)
+reportlab==4.0.7
+
 
 
 

@@ -69,13 +69,13 @@ tradepal-ai/
 ## 📈 Progress
 
 - [x] Step 1: Frontend chatbot
-- [x] Step 2: Backend LangChain Agent
+- [x] Step 2: Backend LangChain Agent  
 - [x] Step 3: PDF upload
-- [ ] Step 4: ChromaDB integration
+- [x] Step 4: ChromaDB integration (code complete, see CHROMADB_SETUP.md)
 - [ ] Step 5: RAG implementation
 - [ ] Step 6: Multi-agent system
 
 ---
 
-**Status**: Steps 1-3 ✅ | Ready for Step 4 🚀
+**Status**: Steps 1-4 ✅ | Ready for Step 5 🚀
 
