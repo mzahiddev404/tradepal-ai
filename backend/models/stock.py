@@ -26,9 +26,14 @@ class OptionsChainResponse(BaseModel):
     """Response model for options chain."""
     symbol: str
     expiration: Optional[str] = None
+    current_price: Optional[float] = None
+    atm_strike: Optional[float] = None
+    strike_range: Optional[int] = None
     available_expirations: Optional[List[str]] = None
+    filtered_expirations: Optional[List[Dict[str, Any]]] = None
     calls: Optional[List[Dict[str, Any]]] = None
     puts: Optional[List[Dict[str, Any]]] = None
+    unusual_count: Optional[int] = None
     timestamp: Optional[str] = None
     error: Optional[str] = None
 

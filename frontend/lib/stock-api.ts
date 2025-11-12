@@ -22,9 +22,14 @@ export interface StockQuote {
 export interface OptionsChain {
   symbol: string;
   expiration?: string;
+  current_price?: number;
+  atm_strike?: number;
+  strike_range?: number;
   available_expirations?: string[];
+  filtered_expirations?: Array<{ date: string; dte: number }>;
   calls?: any[];
   puts?: any[];
+  unusual_count?: number;
   timestamp?: string;
   error?: string;
 }
@@ -59,20 +64,40 @@ export async function getStockQuote(symbol: string): Promise<StockQuote> {
  */
 export async function getOptionsChain(
   symbol: string,
-  expiration?: string
+  expiration?: string,
+  filterExpirations: string = "front_week",
+  strikeRange: number = 5,
+  minPremium: number = 50000,
+  showUnusualOnly: boolean = false
 ): Promise<OptionsChain> {
-  const url = new URL(`${API_URL}/api/stock/options/${symbol.toUpperCase()}`);
-  if (expiration) {
-    url.searchParams.append("expiration", expiration);
+  try {
+    const url = new URL(`${API_URL}/api/stock/options/${symbol.toUpperCase()}`);
+    if (expiration) {
+      url.searchParams.append("expiration", expiration);
+    }
+    url.searchParams.append("filter_expirations", filterExpirations);
+    url.searchParams.append("strike_range", strikeRange.toString());
+    url.searchParams.append("min_premium", minPremium.toString());
+    url.searchParams.append("show_unusual_only", showUnusualOnly.toString());
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Options API error (${response.status}):`, errorText);
+      throw new Error(`API error: ${response.status} - ${errorText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching options chain:', error);
+    throw error;
   }
-
-  const response = await fetch(url.toString());
-
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
-  }
-
-  return await response.json();
 }
 
 /**

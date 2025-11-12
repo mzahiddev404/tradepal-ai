@@ -193,19 +193,35 @@ class StockDataService:
                 "error": f"Failed to fetch stock data: {str(e)}"
             }
     
-    def get_options_chain(self, symbol: str, expiration: Optional[str] = None) -> Dict:
+    def get_options_chain(
+        self, 
+        symbol: str, 
+        expiration: Optional[str] = None,
+        filter_expirations: str = "front_week",
+        strike_range: int = 5,
+        min_premium: float = 50000.0,
+        show_unusual_only: bool = False
+    ) -> Dict:
         """
-        Get options chain for a stock.
+        Get options chain for a stock with advanced filtering and unusual activity detection.
         
         Args:
             symbol: Stock symbol
             expiration: Optional expiration date (YYYY-MM-DD)
+            filter_expirations: "front_week" (0DTE to weekly, max 2 weeks) or "all"
+            strike_range: Number of strikes around ATM (default: 5)
+            min_premium: Minimum premium filter in dollars (default: 50000)
+            show_unusual_only: Only show unusual activity options (default: False)
             
         Returns:
-            Dictionary with options chain data
+            Dictionary with options chain data including unusual activity flags
         """
         try:
             ticker = yf.Ticker(symbol)
+            
+            # Get current stock price for ATM calculation
+            info = ticker.info
+            current_price = info.get("currentPrice") or info.get("regularMarketPrice") or 0
             
             # Get available expiration dates
             expirations = ticker.options
@@ -216,36 +232,93 @@ class StockDataService:
                     "error": "No options data available"
                 }
             
-            # Use provided expiration or nearest one
+            est_tz = ZoneInfo("America/New_York")
+            today = datetime.now(est_tz).date()
+            
+            # Filter expirations based on filter_expirations parameter
+            if filter_expirations == "front_week":
+                # Front week: 0DTE to weekly expiry, max 2 weeks
+                filtered_exps = []
+                for exp_str in expirations:
+                    exp_date = datetime.strptime(exp_str, "%Y-%m-%d").date()
+                    dte = (exp_date - today).days
+                    if 0 <= dte <= 14:  # 0DTE to 2 weeks
+                        filtered_exps.append({
+                            "date": exp_str,
+                            "dte": dte
+                        })
+                # Sort by DTE (earliest first)
+                filtered_exps.sort(key=lambda x: x["dte"])
+            else:
+                # All expirations
+                filtered_exps = [{"date": exp, "dte": (datetime.strptime(exp, "%Y-%m-%d").date() - today).days} 
+                                for exp in expirations[:10]]
+                filtered_exps.sort(key=lambda x: x["dte"])
+            
+            if not filtered_exps:
+                return {
+                    "symbol": symbol,
+                    "error": "No valid expirations found"
+                }
+            
+            # Use provided expiration or earliest filtered one
             if expiration:
                 target_exp = expiration
             else:
-                # Get nearest expiration (at least 7 days out)
-                est_tz = ZoneInfo("America/New_York")
-                today = datetime.now(est_tz).date()
-                valid_exps = [exp for exp in expirations if datetime.strptime(exp, "%Y-%m-%d").date() > today + timedelta(days=7)]
-                target_exp = valid_exps[0] if valid_exps else expirations[0]
+                target_exp = filtered_exps[0]["date"]
             
             # Get options chain
             opt_chain = ticker.option_chain(target_exp)
             
-            # Process calls
+            # Calculate ATM strike (round to nearest $5 for most stocks, $1 for SPY/QQQ)
+            if symbol in ["SPY", "QQQ", "DIA"]:
+                atm_strike = round(current_price)
+            else:
+                atm_strike = round(current_price / 5) * 5
+            
+            # Process and filter calls
             calls = []
             if not opt_chain.calls.empty:
-                calls = opt_chain.calls.head(20).to_dict('records')
+                calls_df = opt_chain.calls.copy()
+                calls_df = self._process_options(
+                    calls_df, current_price, atm_strike, strike_range, 
+                    min_premium, show_unusual_only, "call"
+                )
+                calls = calls_df.to_dict('records')
             
-            # Process puts
+            # Process and filter puts
             puts = []
             if not opt_chain.puts.empty:
-                puts = opt_chain.puts.head(20).to_dict('records')
+                puts_df = opt_chain.puts.copy()
+                puts_df = self._process_options(
+                    puts_df, current_price, atm_strike, strike_range,
+                    min_premium, show_unusual_only, "put"
+                )
+                puts = puts_df.to_dict('records')
             
-            est_tz = ZoneInfo("America/New_York")
+            # Detect flow patterns
+            all_options = calls + puts
+            flow_patterns = self._detect_flow_patterns(all_options)
+            
+            # Update options with flow patterns
+            for option in calls + puts:
+                strike = option.get("strike", 0)
+                option["flow_pattern"] = flow_patterns.get(strike, "isolated")
+            
+            # Count unusual options
+            unusual_count = sum(1 for opt in all_options if opt.get("unusual_activity", False))
+            
             return {
                 "symbol": symbol,
                 "expiration": target_exp,
-                "available_expirations": list(expirations[:10]),  # Limit to 10
+                "current_price": current_price,
+                "atm_strike": atm_strike,
+                "strike_range": strike_range,
+                "filtered_expirations": filtered_exps,
+                "available_expirations": [exp["date"] for exp in filtered_exps],
                 "calls": calls,
                 "puts": puts,
+                "unusual_count": unusual_count,
                 "timestamp": datetime.now(est_tz).isoformat()
             }
         except Exception as e:
@@ -254,6 +327,135 @@ class StockDataService:
                 "symbol": symbol,
                 "error": f"Failed to fetch options data: {str(e)}"
             }
+    
+    def _process_options(
+        self, 
+        options_df, 
+        current_price: float, 
+        atm_strike: float, 
+        strike_range: int,
+        min_premium: float,
+        show_unusual_only: bool,
+        option_type: str
+    ):
+        """Process options dataframe with filtering and unusual activity detection."""
+        import pandas as pd
+        
+        if options_df.empty:
+            return options_df
+        
+        # Filter by strike range (ATM ± strike_range)
+        min_strike = atm_strike - (strike_range * 5)  # Assuming $5 increments
+        max_strike = atm_strike + (strike_range * 5)
+        
+        # Adjust for SPY/QQQ which use $1 increments
+        if min_strike < 100:
+            min_strike = atm_strike - strike_range
+            max_strike = atm_strike + strike_range
+        
+        filtered_df = options_df[
+            (options_df["strike"] >= min_strike) & 
+            (options_df["strike"] <= max_strike)
+        ].copy()
+        
+        # Calculate metrics
+        filtered_df["is_atm"] = abs(filtered_df["strike"] - atm_strike) < 2.5
+        
+        # Fill NaN values with 0 for numeric columns
+        if "volume" in filtered_df.columns:
+            filtered_df["volume"] = filtered_df["volume"].fillna(0)
+        else:
+            filtered_df["volume"] = 0
+            
+        if "openInterest" in filtered_df.columns:
+            filtered_df["openInterest"] = filtered_df["openInterest"].fillna(0)
+        else:
+            filtered_df["openInterest"] = 0
+            
+        if "lastPrice" in filtered_df.columns:
+            filtered_df["lastPrice"] = filtered_df["lastPrice"].fillna(0)
+        else:
+            filtered_df["lastPrice"] = 0
+        
+        # Calculate volume-to-OI ratio
+        filtered_df["volume_to_oi_ratio"] = filtered_df.apply(
+            lambda row: row["volume"] / row["openInterest"] if row["openInterest"] > 0 else 0,
+            axis=1
+        )
+        
+        # Calculate estimated premium (volume × lastPrice × 100)
+        filtered_df["estimated_premium"] = filtered_df["volume"] * filtered_df["lastPrice"] * 100
+        
+        # Detect unusual activity
+        filtered_df["unusual_activity"] = False
+        filtered_df["activity_reason"] = ""
+        
+        for idx, row in filtered_df.iterrows():
+            reasons = []
+            
+            # High volume-to-OI ratio
+            if row["volume_to_oi_ratio"] > 2.0:
+                reasons.append(f"High V/OI ratio ({row['volume_to_oi_ratio']:.2f})")
+            
+            # Significant premium (use this for detection, but don't filter yet)
+            if row["estimated_premium"] >= min_premium:
+                reasons.append(f"Premium ${row['estimated_premium']:,.0f}")
+            
+            # High volume relative to average (if we had historical data)
+            if row["volume"] > 100:  # Threshold for significant volume
+                reasons.append("High volume")
+            
+            if reasons:
+                filtered_df.at[idx, "unusual_activity"] = True
+                filtered_df.at[idx, "activity_reason"] = " | ".join(reasons)
+        
+        # Filter by minimum premium first (before unusual filter)
+        filtered_df = filtered_df[filtered_df["estimated_premium"] >= min_premium]
+        
+        # Filter by unusual only if requested
+        if show_unusual_only:
+            filtered_df = filtered_df[filtered_df["unusual_activity"] == True]
+        
+        return filtered_df
+    
+    def _detect_flow_patterns(self, options: List[Dict]) -> Dict[float, str]:
+        """
+        Detect flow patterns across strikes.
+        
+        Returns:
+            Dictionary mapping strike to pattern: "program", "spread", or "isolated"
+        """
+        patterns = {}
+        
+        # Group options by strike
+        strikes_with_activity = {}
+        for opt in options:
+            if opt.get("unusual_activity", False):
+                strike = opt.get("strike", 0)
+                if strike not in strikes_with_activity:
+                    strikes_with_activity[strike] = []
+                strikes_with_activity[strike].append(opt)
+        
+        # Detect patterns
+        active_strikes = sorted(strikes_with_activity.keys())
+        
+        for i, strike in enumerate(active_strikes):
+            # Check if multiple consecutive strikes are active
+            consecutive_count = 1
+            for j in range(i + 1, min(i + 4, len(active_strikes))):
+                if active_strikes[j] - strike <= 15:  # Within 3 strikes ($15 for $5 increments)
+                    consecutive_count += 1
+                else:
+                    break
+            
+            if consecutive_count >= 3:
+                patterns[strike] = "spread"
+            elif len(active_strikes) >= 5:
+                patterns[strike] = "program"
+            else:
+                patterns[strike] = "isolated"
+        
+        return patterns
     
     def get_market_overview(self) -> Dict:
         """

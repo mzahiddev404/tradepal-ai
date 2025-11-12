@@ -60,21 +60,40 @@ async def get_stock_quote(
 @router.get("/options/{symbol}", response_model=OptionsChainResponse)
 async def get_options_chain(
     symbol: str,
-    expiration: Optional[str] = Query(None, description="Expiration date (YYYY-MM-DD)")
+    expiration: Optional[str] = Query(None, description="Expiration date (YYYY-MM-DD)"),
+    filter_expirations: str = Query("front_week", description="Filter: 'front_week' or 'all'"),
+    strike_range: int = Query(5, description="Number of strikes around ATM (3-10)"),
+    min_premium: float = Query(50000.0, description="Minimum premium filter in dollars"),
+    show_unusual_only: bool = Query(False, description="Show only unusual activity options")
 ):
     """
-    Get options chain for a stock.
+    Get options chain for a stock with advanced filtering and unusual activity detection.
     
     Args:
         symbol: Stock symbol
-        expiration: Optional expiration date
+        expiration: Optional expiration date (YYYY-MM-DD)
+        filter_expirations: Filter expirations - "front_week" (0DTE to 2 weeks) or "all"
+        strike_range: Number of strikes around ATM (default: 5)
+        min_premium: Minimum premium filter in dollars (default: 50000)
+        show_unusual_only: Only show unusual activity options (default: False)
         
     Returns:
-        OptionsChainResponse with options data
+        OptionsChainResponse with options data including unusual activity flags
     """
     try:
         symbol_upper = symbol.upper()
-        options = stock_data_service.get_options_chain(symbol_upper, expiration)
+        
+        # Validate strike_range
+        strike_range = max(3, min(10, strike_range))
+        
+        options = stock_data_service.get_options_chain(
+            symbol_upper, 
+            expiration,
+            filter_expirations=filter_expirations,
+            strike_range=strike_range,
+            min_premium=min_premium,
+            show_unusual_only=show_unusual_only
+        )
         
         if "error" in options:
             raise HTTPException(

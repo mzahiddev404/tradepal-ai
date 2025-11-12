@@ -6,6 +6,8 @@ with integrated stock market data fetching capabilities.
 """
 from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage, AIMessage, SystemMessage
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables import RunnablePassthrough
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -15,14 +17,21 @@ from utils.sentiment_analysis import sentiment_analyzer
 import logging
 import re
 
+# Try to import ChromaDB client, handle gracefully if unavailable
+try:
+    from utils.chromadb_client import chromadb_client, CHROMADB_AVAILABLE
+except ImportError:
+    CHROMADB_AVAILABLE = False
+    chromadb_client = None
+
 logger = logging.getLogger(__name__)
 
 
 class ChatAgent:
-    """Simple LangChain chat agent."""
+    """LangChain chat agent with RAG and stock data capabilities."""
     
     def __init__(self):
-        """Initialize the chat agent with OpenAI LLM."""
+        """Initialize the chat agent with OpenAI LLM and RAG retriever."""
         self.llm = ChatOpenAI(
             model=settings.llm_model_name,
             temperature=settings.temperature,
@@ -30,14 +39,28 @@ class ChatAgent:
             openai_api_key=settings.openai_api_key,
         )
         
+        # Initialize ChromaDB retriever if available
+        self.retriever = None
+        self.use_rag = False
+        if CHROMADB_AVAILABLE and chromadb_client:
+            try:
+                self.retriever = chromadb_client.get_retriever(k=4)
+                self.use_rag = True
+                logger.info("ChromaDB RAG retriever initialized")
+            except Exception as e:
+                logger.warning(f"Could not initialize ChromaDB retriever: {e}")
+                self.use_rag = False
+        else:
+            logger.info("ChromaDB not available, RAG disabled")
+        
         # Get current date and time in EST timezone for context
         est_tz = ZoneInfo("America/New_York")
         current_datetime = datetime.now(est_tz)
         current_date = current_datetime.strftime("%B %d, %Y")
         current_time = current_datetime.strftime("%I:%M %p %Z")
         
-        # System prompt for the customer service agent - EXTREMELY EXPLICIT
-        self.system_prompt = f"""You are TradePal AI - a DATA-DRIVEN trading assistant.
+        # System prompt for the trading assistant - EXTREMELY EXPLICIT
+        self.base_system_prompt = f"""You are TradePal AI - a DATA-DRIVEN trading assistant.
 
 TODAY IS: {current_date} at {current_time}
 
@@ -56,6 +79,12 @@ STOCK PRICES:
 - The data I provide is from TODAY: {current_date}
 - Example: If data says $434.47, you say "$434.47" - NOT "$1,000" or any other number
 
+DOCUMENT CONTEXT (RAG):
+- When [DOCUMENT CONTEXT] is provided, use it to answer questions about policies, billing, technical documentation
+- Cite specific information from documents when relevant
+- If document context contradicts stock data, prioritize stock data for price-related queries
+- For general questions, use document context as primary source
+
 MARKET SENTIMENT (CRITICAL - ALWAYS INCLUDE):
 - When sentiment data is provided, you MUST include ALL sentiment details in your response
 - ALWAYS mention: Overall sentiment score, news sentiment with article count, Reddit sentiment with mention count
@@ -68,13 +97,9 @@ MARKET SENTIMENT (CRITICAL - ALWAYS INCLUDE):
 - These numbers are CRITICAL for investment decisions - NEVER skip them
 
 RESPONSE FORMAT:
-"As of [DATE] at [TIME]: [SYMBOL] is $[EXACT_PRICE_FROM_DATA]. 
-
-Market Sentiment: [OVERALL_SENTIMENT] (Score: [SCORE])
-- News Sentiment: [LABEL] from [ARTICLE_COUNT] articles analyzed
-- Reddit Sentiment: [LABEL] from [MENTION_COUNT] posts
-- Investment Guidance: [GUIDANCE]
-- Call/Put Recommendation: [CALL/PUT]"
+- For stock queries: "As of [DATE] at [TIME]: [SYMBOL] is $[EXACT_PRICE_FROM_DATA]. [Sentiment data]"
+- For document queries: Use information from [DOCUMENT CONTEXT] and cite sources
+- For general questions: Combine available context appropriately
 
 BANNED PHRASES:
 - "As of my last update"
@@ -85,9 +110,52 @@ BANNED PHRASES:
 
 BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
     
-    def _format_history(self, history: List[Dict[str, str]]) -> List:
+    def _retrieve_documents(self, query: str) -> str:
+        """
+        Retrieve relevant documents from ChromaDB using RAG.
+        
+        Args:
+            query: User query to search for
+            
+        Returns:
+            Formatted document context string or empty string if no documents found
+        """
+        if not self.use_rag or not self.retriever:
+            return ""
+        
+        try:
+            # Retrieve relevant documents
+            docs = self.retriever.get_relevant_documents(query)
+            
+            if not docs:
+                return ""
+            
+            # Format documents for context
+            context_parts = []
+            for i, doc in enumerate(docs, 1):
+                source = doc.metadata.get('source_file', 'Unknown')
+                page = doc.metadata.get('page', 'N/A')
+                doc_type = doc.metadata.get('document_type', 'general')
+                
+                context_parts.append(
+                    f"[Document {i} - {doc_type}]\n"
+                    f"Source: {source} (Page {page})\n"
+                    f"Content: {doc.page_content}\n"
+                )
+            
+            return "\n".join(context_parts)
+        except Exception as e:
+            logger.warning(f"Error retrieving documents: {e}")
+            return ""
+    
+    def _format_history(self, history: List[Dict[str, str]], document_context: str = "") -> List:
         """Convert history dict to LangChain message format."""
-        messages = [SystemMessage(content=self.system_prompt)]
+        # Build system prompt with document context if available
+        system_content = self.base_system_prompt
+        if document_context:
+            system_content += f"\n\n[DOCUMENT CONTEXT]\n{document_context}"
+        
+        messages = [SystemMessage(content=system_content)]
         
         for msg in history:
             if msg["role"] == "user":
@@ -230,14 +298,16 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
     async def get_response(
         self, 
         message: str, 
-        history: List[Dict[str, str]] = None
+        history: List[Dict[str, str]] = None,
+        use_rag: bool = True
     ) -> str:
         """
-        Get response from the agent.
+        Get response from the agent with optional RAG.
         
         Args:
             message: User's message
             history: Conversation history
+            use_rag: Whether to use RAG retrieval (default: True)
             
         Returns:
             AI response string
@@ -247,6 +317,16 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
         
         # Check if this is a stock-related query and detect date
         is_stock_query, symbol, date = self._check_for_stock_query(message)
+        
+        # Retrieve documents using RAG (for non-stock queries or to supplement stock queries)
+        document_context = ""
+        if use_rag and self.use_rag:
+            # Retrieve documents for general queries or to supplement stock queries
+            # Skip RAG for very simple stock price queries to avoid unnecessary retrieval
+            if not is_stock_query or (is_stock_query and len(message.split()) > 5):
+                document_context = self._retrieve_documents(message)
+                if document_context:
+                    logger.info(f"Retrieved {len(document_context.split('[Document')) - 1} documents for RAG")
         
         # Check if query is unclear but symbol is detected
         is_unclear = self._is_unclear_query(message, symbol)
@@ -525,8 +605,8 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
             # We have valid stock data and context - proceed with LLM but with strong instructions
             pass
         
-        # Format conversation history
-        messages = self._format_history(history)
+        # Format conversation history with document context
+        messages = self._format_history(history, document_context=document_context)
         
         # Add current user message with stock context if available
         user_message = message + stock_context if stock_context else message
@@ -623,6 +703,46 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
                         continue
         
         return response_text
+    
+    async def get_response_stream(
+        self,
+        message: str,
+        history: List[Dict[str, str]] = None,
+        use_rag: bool = True
+    ):
+        """
+        Get streaming response from the agent.
+        
+        Args:
+            message: User's message
+            history: Conversation history
+            use_rag: Whether to use RAG retrieval (default: True)
+            
+        Yields:
+            Response chunks as strings
+        """
+        if history is None:
+            history = []
+        
+        # Check if this is a stock-related query and detect date
+        is_stock_query, symbol, date = self._check_for_stock_query(message)
+        
+        # Retrieve documents using RAG
+        document_context = ""
+        if use_rag and self.use_rag:
+            if not is_stock_query or (is_stock_query and len(message.split()) > 5):
+                document_context = self._retrieve_documents(message)
+        
+        # Format messages with document context
+        messages = self._format_history(history, document_context=document_context)
+        
+        # Add user message (stock context will be added in get_response for non-streaming)
+        messages.append(HumanMessage(content=message))
+        
+        # Stream response from LLM
+        async for chunk in self.llm.astream(messages):
+            if chunk.content:
+                yield chunk.content
 
 
 # Global agent instance
