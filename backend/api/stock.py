@@ -3,7 +3,7 @@ Stock market data API endpoints.
 """
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List
-from models.stock import StockQuoteResponse, OptionsChainResponse, MarketOverviewResponse
+from models.stock import StockQuoteResponse, OptionsChainResponse, MarketOverviewResponse, HistoricalPriceResponse
 from utils.stock_data import stock_data_service
 
 router = APIRouter(prefix="/api/stock", tags=["stock"])
@@ -124,4 +124,39 @@ async def get_multiple_quotes(
         raise HTTPException(
             status_code=500,
             detail=f"Error fetching quotes: {str(e)}"
+        )
+
+
+@router.get("/historical/{symbol}", response_model=HistoricalPriceResponse)
+async def get_historical_price(
+    symbol: str,
+    date: str = Query(..., description="Date in YYYY-MM-DD format")
+):
+    """
+    Get historical stock price for a specific date.
+    
+    Args:
+        symbol: Stock symbol (e.g., SPY, TSLA)
+        date: Date in YYYY-MM-DD format
+        
+    Returns:
+        HistoricalPriceResponse with historical price data
+    """
+    try:
+        symbol_upper = symbol.upper()
+        historical_data = stock_data_service.get_historical_price(symbol_upper, date)
+        
+        if "error" in historical_data:
+            raise HTTPException(
+                status_code=404,
+                detail=historical_data["error"]
+            )
+        
+        return HistoricalPriceResponse(**historical_data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching historical price: {str(e)}"
         )

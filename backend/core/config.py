@@ -20,8 +20,12 @@ class Settings(BaseSettings):
     
     # LLM Configuration
     llm_model_name: str = "gpt-3.5-turbo"
-    temperature: float = 0.7
+    temperature: float = 0.1  # Very low temperature to minimize hallucination and ensure data accuracy
     max_tokens: Optional[int] = None
+    
+    # API Keys for additional services (optional)
+    news_api_key: Optional[str] = None  # For news sentiment
+    alpha_vantage_api_key: Optional[str] = None  # Primary stock data source (Alpha Vantage)
     
     model_config = {
         "env_file": ".env",

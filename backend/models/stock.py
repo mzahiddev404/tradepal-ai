@@ -37,3 +37,16 @@ class MarketOverviewResponse(BaseModel):
     indices: Optional[List[Dict[str, Any]]] = None
     timestamp: Optional[str] = None
     error: Optional[str] = None
+
+
+class HistoricalPriceResponse(BaseModel):
+    """Response model for historical stock price."""
+    symbol: str
+    date: Optional[str] = None
+    open: Optional[float] = None
+    high: Optional[float] = None
+    low: Optional[float] = None
+    close: Optional[float] = None
+    volume: Optional[int] = None
+    timestamp: Optional[str] = None
+    error: Optional[str] = None
