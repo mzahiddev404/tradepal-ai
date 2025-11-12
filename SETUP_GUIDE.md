@@ -1,88 +1,45 @@
-# Setup Guide - TradePal AI
-
-Quick guide to get both frontend and backend running.
+# Setup Guide
 
 ## Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 18+
 - Python 3.9+
 - OpenAI API key
+- Alpha Vantage API key (optional)
 
-## Backend Setup
+## Backend
 
 ```bash
 cd backend
-
-# Create virtual environment
 python3 -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install dependencies
+source venv/bin/activate
 pip install -r requirements.txt
-
-# Setup environment
 cp .env.example .env
-# Edit .env and add: OPENAI_API_KEY=sk-...
-
-# Run server
+# Edit .env: add OPENAI_API_KEY and ALPHA_VANTAGE_API_KEY
 python main.py
 ```
 
-Backend runs at **http://localhost:8000**  
-API docs at **http://localhost:8000/docs**
+Backend: http://localhost:8000
 
-## Frontend Setup
+## Frontend
 
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
-
-# Optional: Create .env.local
-echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
-
-# Run dev server
 npm run dev
 ```
 
-Frontend runs at **http://localhost:3000**
-
-## Quick Start (Using Scripts)
-
-```bash
-# Terminal 1 - Backend
-./START_BACKEND.sh
-
-# Terminal 2 - Frontend  
-./START_DEV_SERVER.sh
-```
+Frontend: http://localhost:3000
 
 ## Testing
 
-1. Open http://localhost:3000
-2. Type a message in the chat
-3. Get AI response from OpenAI via LangChain
+1. Start backend: `cd backend && python main.py`
+2. Start frontend: `cd frontend && npm run dev`
+3. Open http://localhost:3000
+4. Ask: "What's the current Tesla stock price?"
 
 ## Troubleshooting
 
-**Backend won't start**: Check OPENAI_API_KEY in backend/.env  
-**Frontend errors**: Ensure backend is running first  
-**macOS Desktop issue**: See TROUBLESHOOTING.md
-
-## What's Working (Steps 1-2)
-
-✅ Next.js chat interface  
-✅ FastAPI backend  
-✅ LangChain + OpenAI  
-✅ Full chat functionality
-
-
-
-
-
-
-
-
-
-
+**Backend errors**: Check `.env` has `OPENAI_API_KEY`  
+**No stock data**: Verify `ALPHA_VANTAGE_API_KEY` or yfinance fallback will be used  
+**Frontend can't connect**: Ensure backend is running on port 8000

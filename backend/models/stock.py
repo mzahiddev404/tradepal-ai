@@ -18,6 +18,7 @@ class StockQuoteResponse(BaseModel):
     high_52w: Optional[float] = None
     low_52w: Optional[float] = None
     timestamp: Optional[str] = None
+    sentiment: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
 
 

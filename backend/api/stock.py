@@ -3,19 +3,27 @@ Stock market data API endpoints.
 """
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List
+import logging
 from models.stock import StockQuoteResponse, OptionsChainResponse, MarketOverviewResponse, HistoricalPriceResponse
 from utils.stock_data import stock_data_service
+from utils.sentiment_analysis import sentiment_analyzer
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/stock", tags=["stock"])
 
 
 @router.get("/quote/{symbol}", response_model=StockQuoteResponse)
-async def get_stock_quote(symbol: str):
+async def get_stock_quote(
+    symbol: str,
+    include_sentiment: bool = Query(False, description="Include sentiment analysis")
+):
     """
     Get current stock quote.
     
     Args:
         symbol: Stock symbol (e.g., SPY, TSLA)
+        include_sentiment: Whether to include sentiment analysis
         
     Returns:
         StockQuoteResponse with current quote data
@@ -29,6 +37,15 @@ async def get_stock_quote(symbol: str):
                 status_code=404,
                 detail=quote["error"]
             )
+        
+        # Add sentiment if requested
+        if include_sentiment:
+            try:
+                sentiment = sentiment_analyzer.get_stock_sentiment(symbol_upper)
+                quote["sentiment"] = sentiment
+            except Exception as e:
+                logger.warning(f"Could not fetch sentiment for {symbol_upper}: {e}")
+                quote["sentiment"] = None
         
         return StockQuoteResponse(**quote)
     except HTTPException:

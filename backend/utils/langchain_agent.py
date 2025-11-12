@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from core.config import settings
 from utils.stock_data import stock_data_service
+from utils.sentiment_analysis import sentiment_analyzer
 import logging
 import re
 
@@ -55,8 +56,25 @@ STOCK PRICES:
 - The data I provide is from TODAY: {current_date}
 - Example: If data says $434.47, you say "$434.47" - NOT "$1,000" or any other number
 
+MARKET SENTIMENT (CRITICAL - ALWAYS INCLUDE):
+- When sentiment data is provided, you MUST include ALL sentiment details in your response
+- ALWAYS mention: Overall sentiment score, news sentiment with article count, Reddit sentiment with mention count
+- ALWAYS include: Investment guidance and Call/Put recommendation
+- Format: "Market Sentiment: [OVERALL_SENTIMENT] (Score: [SCORE])
+  - News Sentiment: [LABEL] from [ARTICLE_COUNT] articles analyzed (Score: [SCORE])
+  - Reddit Sentiment: [LABEL] from [MENTION_COUNT] posts (Score: [SCORE], Bullish: [X], Bearish: [Y])
+  - Investment Guidance: [GUIDANCE]
+  - Call/Put Recommendation: [CALL/PUT]"
+- These numbers are CRITICAL for investment decisions - NEVER skip them
+
 RESPONSE FORMAT:
-"As of [DATE] at [TIME]: [SYMBOL] is $[EXACT_PRICE_FROM_DATA]"
+"As of [DATE] at [TIME]: [SYMBOL] is $[EXACT_PRICE_FROM_DATA]. 
+
+Market Sentiment: [OVERALL_SENTIMENT] (Score: [SCORE])
+- News Sentiment: [LABEL] from [ARTICLE_COUNT] articles analyzed
+- Reddit Sentiment: [LABEL] from [MENTION_COUNT] posts
+- Investment Guidance: [GUIDANCE]
+- Call/Put Recommendation: [CALL/PUT]"
 
 BANNED PHRASES:
 - "As of my last update"
@@ -250,6 +268,15 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
                     stock_data = stock_data_service.get_stock_quote(symbol)
                     is_historical = False
                 
+                # Fetch sentiment data (only for current quotes, not historical)
+                sentiment_data = None
+                if not is_historical and "error" not in stock_data:
+                    try:
+                        sentiment_data = sentiment_analyzer.get_stock_sentiment(symbol)
+                    except Exception as e:
+                        logger.warning(f"Error fetching sentiment for {symbol}: {e}")
+                        sentiment_data = None
+                
                 if "error" not in stock_data:
                     if is_historical:
                         # Historical price data
@@ -332,6 +359,89 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
                         stock_context += f"Change: ${change:.2f} ({change_pct:+.2f}%)\n"
                         stock_context += f"Previous Close: ${stock_data.get('previous_close', 'N/A')}\n\n"
                         
+                        # Add sentiment data if available
+                        if sentiment_data and "error" not in sentiment_data:
+                            overall_sentiment = sentiment_data.get('overall_sentiment', 'NEUTRAL')
+                            overall_score = sentiment_data.get('overall_score', 0.0)
+                            news_sentiment = sentiment_data.get('news_sentiment')
+                            reddit_sentiment = sentiment_data.get('reddit_sentiment')
+                            
+                            # Determine investment guidance
+                            if overall_score >= 0.5:
+                                investment_guidance = "STRONG BULLISH - Consider CALL options or LONG positions"
+                                call_put_recommendation = "CALL"
+                            elif overall_score >= 0.2:
+                                investment_guidance = "BULLISH - Consider CALL options or LONG positions"
+                                call_put_recommendation = "CALL"
+                            elif overall_score <= -0.5:
+                                investment_guidance = "STRONG BEARISH - Consider PUT options or SHORT positions"
+                                call_put_recommendation = "PUT"
+                            elif overall_score <= -0.2:
+                                investment_guidance = "BEARISH - Consider PUT options or SHORT positions"
+                                call_put_recommendation = "PUT"
+                            else:
+                                investment_guidance = "NEUTRAL - Wait for clearer signals before taking positions"
+                                call_put_recommendation = "NEUTRAL"
+                            
+                            stock_context += f"\n{'═'*70}\n"
+                            stock_context += f"📊 MARKET SENTIMENT ANALYSIS 📊\n"
+                            stock_context += f"{'═'*70}\n\n"
+                            stock_context += f"╔{'═'*68}╗\n"
+                            stock_context += f"║  OVERALL SENTIMENT: {overall_sentiment:<20} Score: {overall_score:+.3f}  ║\n"
+                            stock_context += f"╚{'═'*68}╝\n\n"
+                            
+                            if news_sentiment:
+                                news_label = news_sentiment.get('sentiment_label', 'N/A')
+                                news_score = news_sentiment.get('sentiment_score', 0)
+                                news_count = news_sentiment.get('news_count', 0)
+                                news_confidence = news_sentiment.get('confidence', 0)
+                                
+                                stock_context += f"📰 NEWS SENTIMENT (Alpha Vantage):\n"
+                                stock_context += f"   Sentiment Label: {news_label}\n"
+                                stock_context += f"   Sentiment Score: {news_score:+.3f} (range: -1.0 to +1.0)\n"
+                                stock_context += f"   Articles Analyzed: {news_count} articles\n"
+                                stock_context += f"   Confidence Level: {news_confidence:.1%}\n"
+                                stock_context += f"   Source: Professional financial news analysis\n\n"
+                            
+                            if reddit_sentiment:
+                                reddit_label = reddit_sentiment.get('sentiment_label', 'N/A')
+                                reddit_score = reddit_sentiment.get('sentiment_score', 0)
+                                reddit_mentions = reddit_sentiment.get('mentions', 0)
+                                reddit_bullish = reddit_sentiment.get('bullish_posts', 0)
+                                reddit_bearish = reddit_sentiment.get('bearish_posts', 0)
+                                
+                                stock_context += f"💬 REDDIT SENTIMENT (r/wallstreetbets):\n"
+                                stock_context += f"   Sentiment Label: {reddit_label}\n"
+                                stock_context += f"   Sentiment Score: {reddit_score:+.3f} (range: -1.0 to +1.0)\n"
+                                stock_context += f"   Total Mentions: {reddit_mentions} posts\n"
+                                stock_context += f"   Bullish Posts: {reddit_bullish} posts\n"
+                                stock_context += f"   Bearish Posts: {reddit_bearish} posts\n"
+                                stock_context += f"   Source: Retail investor sentiment from Reddit\n\n"
+                            
+                            stock_context += f"{'─'*70}\n"
+                            stock_context += f"💡 INVESTMENT GUIDANCE:\n"
+                            stock_context += f"{'─'*70}\n"
+                            stock_context += f"Recommendation: {investment_guidance}\n"
+                            stock_context += f"Call/Put Side: {call_put_recommendation}\n"
+                            stock_context += f"\n⚠️  IMPORTANT: This is sentiment analysis only, not financial advice.\n"
+                            stock_context += f"Always do your own research and consider risk management.\n"
+                            stock_context += f"{'═'*70}\n\n"
+                            
+                            # Add explicit instruction to include sentiment in response
+                            stock_context += f"\n{'🚨'*25}\n"
+                            stock_context += f"⚠️  YOU MUST INCLUDE SENTIMENT DATA IN YOUR RESPONSE ⚠️\n"
+                            stock_context += f"{'🚨'*25}\n\n"
+                            stock_context += f"REQUIRED SENTIMENT INFORMATION TO MENTION:\n"
+                            stock_context += f"1. Overall Sentiment: {overall_sentiment} (Score: {overall_score:+.3f})\n"
+                            if news_sentiment:
+                                stock_context += f"2. News Sentiment: {news_sentiment.get('sentiment_label')} from {news_sentiment.get('news_count', 0)} articles\n"
+                            if reddit_sentiment:
+                                stock_context += f"3. Reddit Sentiment: {reddit_sentiment.get('sentiment_label')} from {reddit_sentiment.get('mentions', 0)} posts\n"
+                            stock_context += f"4. Investment Guidance: {investment_guidance}\n"
+                            stock_context += f"5. Call/Put Recommendation: {call_put_recommendation}\n\n"
+                            stock_context += f"DO NOT SKIP THESE NUMBERS - THEY ARE CRITICAL FOR INVESTMENT DECISIONS.\n"
+                            stock_context += f"{'🚨'*25}\n\n"
+                        
                         # Additional data
                         if stock_data.get('volume'):
                             stock_context += f"Volume: {stock_data['volume']:,} shares\n"
@@ -363,10 +473,45 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
         # If query is unclear but we have stock data, return simple format
         if is_unclear and symbol and stock_data and "error" not in stock_data:
             if not is_historical:
-                # Return simple format: symbol, current price, current time
+                # Return simple format: symbol, current price, current time, sentiment
                 current_price = stock_data.get('current_price', 0)
                 name = stock_data.get('name', symbol)
-                return f"{{\n  \"symbol\": \"{symbol}\",\n  \"name\": \"{name}\",\n  \"current_price\": {current_price},\n  \"previous_close\": {stock_data.get('previous_close', 0)},\n  \"change\": {stock_data.get('change', 0)},\n  \"change_percent\": {stock_data.get('change_percent', 0)},\n  \"timestamp\": \"{current_time}\"\n}}"
+                
+                # Build sentiment string with all details
+                sentiment_str = ""
+                if sentiment_data and "error" not in sentiment_data:
+                    overall_sentiment = sentiment_data.get('overall_sentiment', 'NEUTRAL')
+                    overall_score = sentiment_data.get('overall_score', 0.0)
+                    news_sentiment = sentiment_data.get('news_sentiment')
+                    reddit_sentiment = sentiment_data.get('reddit_sentiment')
+                    
+                    # Determine call/put recommendation
+                    if overall_score >= 0.2:
+                        call_put = "CALL"
+                    elif overall_score <= -0.2:
+                        call_put = "PUT"
+                    else:
+                        call_put = "NEUTRAL"
+                    
+                    sentiment_str = f',\n  "sentiment": {{\n    "overall": "{overall_sentiment}",\n    "overall_score": {overall_score}'
+                    
+                    if news_sentiment:
+                        news_label = news_sentiment.get("sentiment_label", "N/A")
+                        news_score = news_sentiment.get("sentiment_score", 0)
+                        news_count = news_sentiment.get("news_count", 0)
+                        sentiment_str += f',\n    "news": {{\n      "label": "{news_label}",\n      "score": {news_score},\n      "articles_analyzed": {news_count}\n    }}'
+                    
+                    if reddit_sentiment:
+                        reddit_label = reddit_sentiment.get("sentiment_label", "N/A")
+                        reddit_score = reddit_sentiment.get("sentiment_score", 0)
+                        reddit_mentions = reddit_sentiment.get("mentions", 0)
+                        reddit_bullish = reddit_sentiment.get("bullish_posts", 0)
+                        reddit_bearish = reddit_sentiment.get("bearish_posts", 0)
+                        sentiment_str += f',\n    "reddit": {{\n      "label": "{reddit_label}",\n      "score": {reddit_score},\n      "mentions": {reddit_mentions},\n      "bullish_posts": {reddit_bullish},\n      "bearish_posts": {reddit_bearish}\n    }}'
+                    
+                    sentiment_str += f',\n    "call_put_recommendation": "{call_put}"\n  }}'
+                
+                return f"{{\n  \"symbol\": \"{symbol}\",\n  \"name\": \"{name}\",\n  \"current_price\": {current_price},\n  \"previous_close\": {stock_data.get('previous_close', 0)},\n  \"change\": {stock_data.get('change', 0)},\n  \"change_percent\": {stock_data.get('change_percent', 0)},\n  \"timestamp\": \"{current_time}\"{sentiment_str}\n}}"
             else:
                 # For historical data, return date and closing price
                 close_price = stock_data.get('close', 0)
@@ -400,6 +545,39 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
                 if not price_mentioned and current_price > 0:
                     # Price not mentioned, prepend it
                     response_text = f"As of {current_time}: {symbol} is ${current_price:.2f}. " + response_text
+                
+                # Check if sentiment is mentioned and force include if missing
+                if sentiment_data and "error" not in sentiment_data:
+                    sentiment_mentioned = re.search(r'(sentiment|bullish|bearish|neutral|call|put)', response_text.lower())
+                    if not sentiment_mentioned:
+                        # Sentiment not mentioned, append it
+                        overall_sentiment = sentiment_data.get('overall_sentiment', 'NEUTRAL')
+                        overall_score = sentiment_data.get('overall_score', 0.0)
+                        news_sentiment = sentiment_data.get('news_sentiment')
+                        reddit_sentiment = sentiment_data.get('reddit_sentiment')
+                        
+                        sentiment_info = f"\n\nMarket Sentiment: {overall_sentiment} (Score: {overall_score:+.3f})"
+                        
+                        if news_sentiment:
+                            sentiment_info += f"\n- News Sentiment: {news_sentiment.get('sentiment_label')} from {news_sentiment.get('news_count', 0)} articles analyzed (Score: {news_sentiment.get('sentiment_score', 0):+.3f})"
+                        
+                        if reddit_sentiment:
+                            sentiment_info += f"\n- Reddit Sentiment: {reddit_sentiment.get('sentiment_label')} from {reddit_sentiment.get('mentions', 0)} posts (Score: {reddit_sentiment.get('sentiment_score', 0):+.3f}, Bullish: {reddit_sentiment.get('bullish_posts', 0)}, Bearish: {reddit_sentiment.get('bearish_posts', 0)})"
+                        
+                        # Add investment guidance
+                        if overall_score >= 0.2:
+                            call_put = "CALL"
+                            guidance = "Consider CALL options or LONG positions"
+                        elif overall_score <= -0.2:
+                            call_put = "PUT"
+                            guidance = "Consider PUT options or SHORT positions"
+                        else:
+                            call_put = "NEUTRAL"
+                            guidance = "Wait for clearer signals"
+                        
+                        sentiment_info += f"\n- Investment Guidance: {guidance}\n- Call/Put Recommendation: {call_put}"
+                        
+                        response_text += sentiment_info
         
         # VALIDATION: Check if AI mentioned a price that doesn't match our data
         if symbol and stock_context:
