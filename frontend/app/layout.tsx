@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { DemoBanner } from "@/components/demo-banner";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,10 +29,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <div className="min-h-screen bg-gradient-to-br from-teal-50 via-cyan-50 to-emerald-50">
+        <ErrorBoundary>
           <DemoBanner />
-          {children}
-        </div>
+          <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
+            {children}
+          </main>
+        </ErrorBoundary>
       </body>
     </html>
   );

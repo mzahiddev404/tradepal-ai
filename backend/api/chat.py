@@ -1,6 +1,20 @@
 """
-Chat API endpoints.
+Chat API Endpoints
+
+Handles chat requests with multi-agent routing support.
+
+Endpoints:
+- POST /api/chat - Standard chat with optional multi-agent routing
+- POST /api/chat/stream - Streaming chat responses
+- GET /api/health - Health check
+
+Future Enhancements:
+- WebSocket support for real-time chat
+- Message history persistence
+- Rate limiting per user
+- Analytics and metrics
 """
+
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from models.chat import ChatRequest, ChatResponse

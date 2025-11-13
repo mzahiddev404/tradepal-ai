@@ -33,9 +33,11 @@ async def get_stock_quote(
         quote = stock_data_service.get_stock_quote(symbol_upper)
         
         if "error" in quote:
-            raise HTTPException(
-                status_code=404,
-                detail=quote["error"]
+            # Return 200 with error in response instead of 404 for better frontend handling
+            # Frontend can check for error field
+            return StockQuoteResponse(
+                symbol=symbol_upper,
+                error=quote["error"]
             )
         
         # Add sentiment if requested

@@ -1,9 +1,21 @@
 """
-FastAPI main application entry point.
+FastAPI Application Entry Point
 
-This module initializes and configures the FastAPI application with CORS middleware
-and routes for chat, upload, and stock market functionality.
+Main application initialization and configuration.
+
+Responsibilities:
+- FastAPI app creation and configuration
+- CORS middleware setup
+- Router registration
+- Logging configuration
+
+Future Enhancements:
+- Request logging middleware
+- Rate limiting middleware
+- Authentication middleware
+- Metrics and monitoring
 """
+
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

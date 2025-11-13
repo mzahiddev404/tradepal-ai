@@ -25,7 +25,8 @@ class Settings(BaseSettings):
     
     # API Keys for additional services (optional)
     news_api_key: Optional[str] = None  # For news sentiment
-    alpha_vantage_api_key: Optional[str] = None  # Primary stock data source (Alpha Vantage)
+    finnhub_api_key: Optional[str] = None  # Primary stock data source (Finnhub - 60 calls/min)
+    alpha_vantage_api_key: Optional[str] = None  # Fallback stock data source (Alpha Vantage - 25 calls/day)
     
     # AWS Bedrock Configuration (optional, for orchestrator)
     aws_access_key_id: Optional[str] = None

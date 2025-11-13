@@ -1,6 +1,9 @@
 "use client";
 
-import { Message } from "./chat-container";
+import { Message } from "@/types/chat";
+import { MessageItem } from "./message-item";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 interface MessageListProps {
@@ -11,11 +14,11 @@ interface MessageListProps {
 export function MessageList({ messages, isLoading }: MessageListProps) {
   if (messages.length === 0 && !isLoading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-center space-y-3 animate-in fade-in duration-500">
-          <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+      <div className="flex h-full items-center justify-center py-12">
+        <div className="text-center space-y-4 max-w-md px-4">
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
             <svg
-              className="w-8 h-8 text-primary"
+              className="w-8 h-8 text-white"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -28,12 +31,14 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
               />
             </svg>
           </div>
-          <p className="text-xl font-semibold text-foreground">
-            Start a conversation
-          </p>
-          <p className="text-sm text-muted-foreground max-w-sm">
-            Send a message to get started with TradePal AI
-          </p>
+          <div className="space-y-2">
+            <p className="text-xl font-bold text-slate-900">
+              Start a conversation
+            </p>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Ask questions about billing, stock prices, technical support, or policies
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -71,19 +76,21 @@ function MessageBubble({ message }: { message: Message }) {
     >
       <div
         className={cn(
-          "max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 shadow-lg transition-all",
+          "max-w-[85%] sm:max-w-[70%] rounded-lg px-4 py-3 transition-all",
           isUser
-            ? "bg-gradient-to-br from-teal-600 via-cyan-600 to-emerald-600 text-white rounded-br-sm shadow-teal-300"
+            ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-md"
             : message.error
-            ? "bg-red-100 border-2 border-red-300 text-red-800 rounded-bl-sm"
-            : "bg-white border-2 border-teal-200 text-gray-800 rounded-bl-sm"
+            ? "bg-red-50 border border-red-200 text-red-900 shadow-sm"
+            : "bg-white border border-slate-200 text-slate-900 shadow-md"
         )}
       >
-        <p className="whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
+        <p className="whitespace-pre-wrap break-words leading-relaxed text-sm sm:text-base">
+          {message.content}
+        </p>
         <p
           className={cn(
-            "mt-2 text-xs opacity-60",
-            isUser ? "text-right" : "text-left"
+            "mt-2 text-xs",
+            isUser ? "text-right text-blue-100" : "text-left text-slate-500"
           )}
         >
           {timeString}
@@ -95,12 +102,12 @@ function MessageBubble({ message }: { message: Message }) {
 
 function LoadingIndicator() {
   return (
-    <div className="flex justify-start animate-in fade-in">
-      <div className="rounded-2xl rounded-bl-sm bg-white border-2 border-teal-200 px-4 py-3 shadow-lg">
+    <div className="flex justify-start">
+      <div className="rounded-lg bg-white border border-slate-200 px-4 py-3 shadow-sm">
         <div className="flex gap-1.5 items-center">
-          <div className="h-3 w-3 animate-bounce rounded-full bg-teal-600 [animation-delay:-0.3s]"></div>
-          <div className="h-3 w-3 animate-bounce rounded-full bg-cyan-600 [animation-delay:-0.15s]"></div>
-          <div className="h-3 w-3 animate-bounce rounded-full bg-emerald-600"></div>
+          <div className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.3s]"></div>
+          <div className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.15s]"></div>
+          <div className="h-2 w-2 animate-bounce rounded-full bg-slate-400"></div>
         </div>
       </div>
     </div>

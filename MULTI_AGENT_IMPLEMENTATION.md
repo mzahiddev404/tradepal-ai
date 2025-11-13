@@ -2,7 +2,7 @@
 
 ## Overview
 
-The TradePal AI backend now includes a complete multi-agent system using LangGraph for intelligent query routing. The system consists of:
+The TradePal AI backend implements a multi-agent system using LangGraph for intelligent query routing. The system consists of:
 
 1. **Orchestrator Agent** - Routes queries to appropriate specialized agents
 2. **Billing Support Agent** - Hybrid RAG/CAG approach for billing questions

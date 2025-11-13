@@ -35,17 +35,19 @@ export function ChatInput({ onSend, disabled, suggestions }: ChatInputProps) {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {suggestions && suggestions.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs sm:text-sm font-medium text-teal-700">💡 Try asking:</p>
+        <div className="space-y-2.5">
+          <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
+            Suggested Questions
+          </p>
           <div className="flex flex-wrap gap-2">
             {suggestions.map((suggestion, index) => (
               <button
                 key={index}
                 onClick={() => handleSuggestionClick(suggestion)}
                 disabled={disabled}
-                className="px-3 py-1.5 text-xs sm:text-sm rounded-full border-2 border-teal-200 bg-white/90 hover:bg-teal-50 hover:border-teal-300 text-teal-800 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md whitespace-nowrap"
+                className="px-3 py-2 text-xs sm:text-sm rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 hover:border-blue-300 text-blue-700 transition-all hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap font-medium"
               >
                 {suggestion}
               </button>
@@ -58,17 +60,17 @@ export function ChatInput({ onSend, disabled, suggestions }: ChatInputProps) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask about stocks, billing, or anything..."
+          placeholder="Type your message..."
           disabled={disabled}
-          className="flex-1 h-12 text-base transition-all focus:ring-2 focus:ring-teal-500 focus:border-teal-500 border-2 border-teal-200 shadow-md"
+          className="flex-1 h-12 text-sm sm:text-base border-slate-300 focus:border-blue-500 focus:ring-blue-500 bg-white shadow-sm"
         />
         <Button
           onClick={handleSend}
           disabled={disabled || !input.trim()}
           size="icon"
-          className="h-12 w-12 transition-all hover:scale-110 hover:shadow-xl active:scale-95 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+          className="h-12 w-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white disabled:opacity-50 disabled:cursor-not-allowed shrink-0 shadow-md transition-all hover:shadow-lg"
         >
-          <Send className="h-5 w-5" />
+          <Send className="h-4 w-4" />
           <span className="sr-only">Send message</span>
         </Button>
       </div>

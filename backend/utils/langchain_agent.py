@@ -300,13 +300,24 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
                                                 from datetime import date as date_class
                                                 parsed_date_obj = date_class(today.year, parsed_date_obj.month, parsed_date_obj.day)
                                         else:
-                                            # Otherwise assume previous year
-                                            if hasattr(parsed_date, 'replace'):
-                                                parsed_date = parsed_date.replace(year=parsed_date.year - 1)
-                                                parsed_date_obj = parsed_date.date()
+                                            # If date is clearly in the future (more than a few days ahead), assume previous year
+                                            days_ahead = (parsed_date_obj - today).days
+                                            if days_ahead > 7:
+                                                # More than a week ahead - definitely previous year
+                                                if hasattr(parsed_date, 'replace'):
+                                                    parsed_date = parsed_date.replace(year=parsed_date.year - 1)
+                                                    parsed_date_obj = parsed_date.date()
+                                                else:
+                                                    from datetime import date as date_class
+                                                    parsed_date_obj = date_class(parsed_date_obj.year - 1, parsed_date_obj.month, parsed_date_obj.day)
                                             else:
-                                                from datetime import date as date_class
-                                                parsed_date_obj = date_class(parsed_date_obj.year - 1, parsed_date_obj.month, parsed_date_obj.day)
+                                                # Within a week - might be a mistake, use previous year to be safe
+                                                if hasattr(parsed_date, 'replace'):
+                                                    parsed_date = parsed_date.replace(year=parsed_date.year - 1)
+                                                    parsed_date_obj = parsed_date.date()
+                                                else:
+                                                    from datetime import date as date_class
+                                                    parsed_date_obj = date_class(parsed_date_obj.year - 1, parsed_date_obj.month, parsed_date_obj.day)
                                     date = parsed_date_obj.strftime("%Y-%m-%d")
                                     break
                                 except (ValueError, Exception) as e:
@@ -398,11 +409,19 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
         document_context = ""
         if use_rag and self.use_rag:
             # Retrieve documents for general queries or to supplement stock queries
-            # Skip RAG for very simple stock price queries to avoid unnecessary retrieval
+            # Always retrieve for non-stock queries, and for stock queries with context (more than 5 words)
+            # This ensures uploaded PDFs are always available when relevant
             if not is_stock_query or (is_stock_query and len(message.split()) > 5):
                 document_context = self._retrieve_documents(message)
                 if document_context:
-                    logger.info(f"Retrieved {len(document_context.split('[Document')) - 1} documents for RAG")
+                    doc_count = len(document_context.split('[Document')) - 1
+                    logger.info(f"Retrieved {doc_count} document(s) from ChromaDB for RAG")
+                    # Log which sources were retrieved for debugging
+                    sources = [line for line in document_context.split('\n') if 'Source:' in line]
+                    if sources:
+                        logger.debug(f"Retrieved sources: {', '.join(set(sources))}")
+                else:
+                    logger.debug("No relevant documents found in ChromaDB for this query")
         
         # Check if query is unclear but symbol is detected
         is_unclear = self._is_unclear_query(message, symbol)
@@ -454,18 +473,22 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
         current_time = datetime.now(est_tz).strftime("%B %d, %Y at %I:%M %p %Z")
         if is_stock_query and symbol and not is_correlation_query:
             try:
-                # Use historical range if date_range is detected
-                if date_range:
+                # Check for explicit current/live/now keywords - prioritize current price
+                current_keywords = ['current', 'now', 'today', 'live', 'real-time', 'realtime', 'right now', 'what is', 'what\'s', 'whats']
+                is_current_query = any(keyword in message_lower for keyword in current_keywords) and not any(hist_word in message_lower for hist_word in ['historical', 'past', 'was', 'were', 'yesterday'])
+                
+                # Use historical range if date_range is detected AND not asking for current
+                if date_range and not is_current_query:
                     days = date_range.get('days', 5)
                     stock_data = stock_data_service.get_historical_price_range(symbol, days=days)
                     is_historical = True
                     is_range = True
-                # Use historical data if single date is detected
-                elif date:
+                # Use historical data if single date is detected AND not asking for current
+                elif date and not is_current_query:
                     stock_data = stock_data_service.get_historical_price(symbol, date)
                     is_historical = True
                     is_range = False
-                # Otherwise use current quote
+                # Otherwise use current quote (default for queries without dates or with current keywords)
                 else:
                     stock_data = stock_data_service.get_stock_quote(symbol)
                     is_historical = False
@@ -716,9 +739,18 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
                         
                         logger.info(f"[EXPLICIT] Stock data for {symbol}: PRICE=${current_price} at {current_time}")
             except Exception as e:
-                logger.error(f"Error fetching stock data: {e}")
-                stock_context = f"\n\n[Error: Cannot retrieve {symbol} data. Ask user to verify symbol or try again.]\n"
-                stock_data = {"error": f"Failed to fetch stock data: {str(e)}"}
+                logger.error(f"Error fetching stock data for {symbol}: {e}", exc_info=True)
+                error_msg = str(e)
+                # Provide more helpful error messages
+                if "Expecting value" in error_msg or "JSON" in error_msg:
+                    error_msg = f"Unable to fetch current price data for {symbol}. The market data service may be temporarily unavailable. Please try again in a moment."
+                elif "429" in error_msg or "Too Many Requests" in error_msg:
+                    error_msg = f"Rate limit exceeded while fetching {symbol} data. Please wait a moment and try again."
+                else:
+                    error_msg = f"Failed to fetch stock data for {symbol}: {error_msg}"
+                
+                stock_context = f"\n\n[Error: {error_msg}]\n"
+                stock_data = {"error": error_msg}
         
         # If query is unclear but we have stock data, return simple format
         if is_unclear and symbol and stock_data and "error" not in stock_data:

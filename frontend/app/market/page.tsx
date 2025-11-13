@@ -169,41 +169,56 @@ export default function MarketPage() {
   };
 
   return (
-    <div className="container mx-auto p-4 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Market Data</h1>
-          <p className="text-muted-foreground">
-            Real-time stock quotes and options data (Demo Application)
-          </p>
+    <div className="min-h-screen bg-slate-50">
+      <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900">Market Data</h1>
+            <p className="text-sm text-slate-600 mt-1">
+              Real-time stock quotes and options data
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button 
+              variant="outline" 
+              onClick={loadMarketData} 
+              disabled={loading}
+              className="h-9 border-slate-300 text-slate-700 hover:bg-slate-50"
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
+              Refresh
+            </Button>
+            <Link href="/disclaimer">
+              <Button variant="outline" className="h-9 border-slate-300 text-slate-700 hover:bg-slate-50">
+                Disclaimer
+              </Button>
+            </Link>
+            <Link href="/">
+              <Button variant="outline" className="h-9 border-slate-300 text-slate-700 hover:bg-slate-50">
+                Chat
+              </Button>
+            </Link>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={loadMarketData} disabled={loading}>
-            <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
-            Refresh
-          </Button>
-          <Link href="/disclaimer">
-            <Button variant="outline">Disclaimer</Button>
-          </Link>
-          <Link href="/">
-            <Button variant="outline">Chat</Button>
-          </Link>
-        </div>
-      </div>
 
       {/* Market Overview */}
       {marketOverview && <MarketOverviewDisplay overview={marketOverview} />}
 
       {/* Search */}
-      <Card className="p-4">
+      <Card className="p-4 border-slate-200 bg-white">
         <div className="flex gap-2">
           <Input
             placeholder="Search stock symbol (e.g., AAPL, MSFT)"
             value={searchSymbol}
             onChange={(e) => setSearchSymbol(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            className="border-slate-300 focus:border-slate-900 focus:ring-slate-900"
           />
-          <Button onClick={handleSearch} disabled={loading}>
+          <Button 
+            onClick={handleSearch} 
+            disabled={loading}
+            className="bg-slate-900 hover:bg-slate-800 text-white"
+          >
             <Search className="h-4 w-4 mr-2" />
             Search
           </Button>
@@ -268,14 +283,14 @@ export default function MarketPage() {
 
       {/* Options Chain */}
       {optionsData && selectedSymbol && !optionsData.error && (
-        <Card className="p-4">
+        <Card className="p-4 sm:p-6 border-slate-200 bg-white">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-lg font-semibold">
+              <h2 className="text-lg font-semibold text-slate-900">
                 Options Chain: {selectedSymbol}
               </h2>
               {optionsData.current_price && optionsData.atm_strike && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-slate-600 mt-1">
                   Current: ${optionsData.current_price.toFixed(2)} | ATM: ${optionsData.atm_strike.toFixed(2)} | 
                   Showing {optionsData.unusual_count || 0} unusual options
                 </p>
@@ -284,7 +299,7 @@ export default function MarketPage() {
           </div>
 
           {/* Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4 p-4 bg-muted rounded-lg">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
             <div className="space-y-2">
               <Label>Expiration</Label>
               <Select
@@ -520,6 +535,7 @@ export default function MarketPage() {
           </div>
         </Card>
       )}
+      </div>
     </div>
   );
 }

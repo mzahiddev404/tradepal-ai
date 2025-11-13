@@ -2,6 +2,8 @@
  * Application constants and configuration values
  */
 
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 // Color palette
 export const COLORS = {
   primary: {
@@ -35,15 +37,16 @@ export const APP_CONFIG = {
 } as const;
 
 // API endpoints
-export const ENDPOINTS = {
-  chat: '/api/chat',
-  health: '/api/health',
-  upload: '/api/upload',
-  stock: {
-    quote: '/api/stock/quote',
-    options: '/api/stock/options',
-    overview: '/api/stock/market/overview',
-  },
+export const API_ENDPOINTS = {
+  CHAT: "/api/chat",
+  HEALTH: "/api/health",
+  UPLOAD: "/api/upload",
+  STOCK_QUOTE: "/api/stock/quote",
+  STOCK_QUOTES: "/api/stock/quotes",
+  MARKET_OVERVIEW: "/api/stock/market/overview",
+  OPTIONS: "/api/stock/options",
+  HISTORICAL: "/api/stock/historical",
+  SENTIMENT_CORRELATION: "/api/sentiment/correlation",
 } as const;
 
 // UI constants

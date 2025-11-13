@@ -1,8 +1,10 @@
 /**
  * Stock market API client
+ * Refactored with better error handling
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { apiRequest } from "./api-client";
+import { API_URL } from "./constants";
 
 export interface StockQuote {
   symbol: string;
@@ -70,13 +72,7 @@ export interface HistoricalPriceRange {
  * Get stock quote
  */
 export async function getStockQuote(symbol: string): Promise<StockQuote> {
-  const response = await fetch(`${API_URL}/api/stock/quote/${symbol.toUpperCase()}`);
-
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
-  }
-
-  return await response.json();
+  return apiRequest<StockQuote>(`/api/stock/quote/${symbol.toUpperCase()}`);
 }
 
 /**
@@ -90,61 +86,31 @@ export async function getOptionsChain(
   minPremium: number = 50000,
   showUnusualOnly: boolean = false
 ): Promise<OptionsChain> {
-  try {
-    const url = new URL(`${API_URL}/api/stock/options/${symbol.toUpperCase()}`);
-    if (expiration) {
-      url.searchParams.append("expiration", expiration);
-    }
-    url.searchParams.append("filter_expirations", filterExpirations);
-    url.searchParams.append("strike_range", strikeRange.toString());
-    url.searchParams.append("min_premium", minPremium.toString());
-    url.searchParams.append("show_unusual_only", showUnusualOnly.toString());
-
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Options API error (${response.status}):`, errorText);
-      throw new Error(`API error: ${response.status} - ${errorText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching options chain:', error);
-    throw error;
+  const url = new URL(`${API_URL}/api/stock/options/${symbol.toUpperCase()}`);
+  if (expiration) {
+    url.searchParams.append("expiration", expiration);
   }
+  url.searchParams.append("filter_expirations", filterExpirations);
+  url.searchParams.append("strike_range", strikeRange.toString());
+  url.searchParams.append("min_premium", minPremium.toString());
+  url.searchParams.append("show_unusual_only", showUnusualOnly.toString());
+
+  return apiRequest<OptionsChain>(url.pathname + url.search);
 }
 
 /**
  * Get market overview
  */
 export async function getMarketOverview(): Promise<MarketOverview> {
-  const response = await fetch(`${API_URL}/api/stock/market/overview`);
-
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
-  }
-
-  return await response.json();
+  return apiRequest<MarketOverview>("/api/stock/market/overview");
 }
 
 /**
  * Get multiple stock quotes
  */
 export async function getMultipleQuotes(symbols: string[]): Promise<StockQuote[]> {
-  const symbolsParam = symbols.map(s => s.toUpperCase()).join(",");
-  const response = await fetch(`${API_URL}/api/stock/quotes?symbols=${symbolsParam}`);
-
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
-  }
-
-  return await response.json();
+  const symbolsParam = symbols.map((s) => s.toUpperCase()).join(",");
+  return apiRequest<StockQuote[]>(`/api/stock/quotes?symbols=${symbolsParam}`);
 }
 
 /**
@@ -156,37 +122,19 @@ export async function getHistoricalPriceRange(
   startDate?: string,
   endDate?: string
 ): Promise<HistoricalPriceRange> {
-  try {
-    const url = new URL(`${API_URL}/api/stock/historical/${symbol.toUpperCase()}/range`);
-    
-    if (days !== undefined) {
-      url.searchParams.append("days", days.toString());
-    }
-    if (startDate) {
-      url.searchParams.append("start_date", startDate);
-    }
-    if (endDate) {
-      url.searchParams.append("end_date", endDate);
-    }
+  const url = new URL(`${API_URL}/api/stock/historical/${symbol.toUpperCase()}/range`);
 
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Historical range API error (${response.status}):`, errorText);
-      throw new Error(`API error: ${response.status} - ${errorText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching historical price range:', error);
-    throw error;
+  if (days !== undefined) {
+    url.searchParams.append("days", days.toString());
   }
+  if (startDate) {
+    url.searchParams.append("start_date", startDate);
+  }
+  if (endDate) {
+    url.searchParams.append("end_date", endDate);
+  }
+
+  return apiRequest<HistoricalPriceRange>(url.pathname + url.search);
 }
 
 

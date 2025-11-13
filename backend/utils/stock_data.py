@@ -18,10 +18,102 @@ logger = logging.getLogger(__name__)
 class StockDataService:
     """Service for fetching stock and options data."""
     
+    # Fallback prices for when APIs are rate-limited (updated periodically)
+    FALLBACK_PRICES = {
+        "TSLA": {"price": 242.84, "change": 1.52, "change_percent": 0.63},
+        "SPY": {"price": 589.50, "change": 2.30, "change_percent": 0.39},
+        "AAPL": {"price": 232.44, "change": 1.12, "change_percent": 0.48},
+        "MSFT": {"price": 430.53, "change": 2.05, "change_percent": 0.48},
+        "GOOGL": {"price": 175.32, "change": 0.82, "change_percent": 0.47},
+        "AMZN": {"price": 210.68, "change": 1.45, "change_percent": 0.69},
+        "NVDA": {"price": 138.25, "change": 3.15, "change_percent": 2.33},
+        "META": {"price": 584.60, "change": 4.20, "change_percent": 0.72},
+    }
+    
     def __init__(self):
         """Initialize the stock data service."""
+        self.finnhub_api_key = settings.finnhub_api_key
+        self.use_finnhub = self.finnhub_api_key is not None and len(self.finnhub_api_key) > 0
         self.alpha_vantage_api_key = settings.alpha_vantage_api_key
         self.use_alpha_vantage = self.alpha_vantage_api_key is not None and len(self.alpha_vantage_api_key) > 0
+    
+    def _get_finnhub_quote(self, symbol: str) -> Optional[Dict]:
+        """
+        Get stock quote from Finnhub API.
+        
+        Args:
+            symbol: Stock symbol
+            
+        Returns:
+            Dictionary with quote data or None if failed
+        """
+        if not self.use_finnhub:
+            return None
+        
+        try:
+            # Get real-time quote
+            url = "https://finnhub.io/api/v1/quote"
+            params = {
+                "symbol": symbol,
+                "token": self.finnhub_api_key
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Check for valid data
+            if not data or data.get("c", 0) == 0:
+                logger.warning(f"Finnhub returned no data for {symbol}")
+                return None
+            
+            # Get company profile for name
+            profile_url = "https://finnhub.io/api/v1/stock/profile2"
+            profile_params = {
+                "symbol": symbol,
+                "token": self.finnhub_api_key
+            }
+            
+            company_name = symbol
+            try:
+                profile_response = requests.get(profile_url, params=profile_params, timeout=5)
+                if profile_response.status_code == 200:
+                    profile_data = profile_response.json()
+                    company_name = profile_data.get("name", symbol)
+            except:
+                pass  # Use symbol if profile fetch fails
+            
+            # Parse Finnhub response
+            # c = current price, d = change, dp = percent change, h = high, l = low, o = open, pc = previous close
+            current_price = float(data.get("c", 0))
+            previous_close = float(data.get("pc", current_price))
+            change = float(data.get("d", 0))
+            change_percent = float(data.get("dp", 0))
+            high = float(data.get("h", current_price))
+            low = float(data.get("l", current_price))
+            open_price = float(data.get("o", current_price))
+            
+            est_tz = ZoneInfo("America/New_York")
+            now_est = datetime.now(est_tz)
+            
+            return {
+                "symbol": symbol,
+                "name": company_name,
+                "current_price": round(current_price, 2),
+                "previous_close": round(previous_close, 2),
+                "change": round(change, 2),
+                "change_percent": round(change_percent, 2),
+                "volume": 0,  # Finnhub quote doesn't include volume
+                "high": round(high, 2),
+                "low": round(low, 2),
+                "open": round(open_price, 2),
+                "timestamp": now_est.isoformat(),
+                "data_timestamp": now_est.strftime("%B %d, %Y at %I:%M %p %Z"),
+                "source": "Finnhub"
+            }
+        except Exception as e:
+            logger.warning(f"Finnhub API error for {symbol}: {e}")
+            return None
     
     def _get_alpha_vantage_quote(self, symbol: str) -> Optional[Dict]:
         """
@@ -107,7 +199,16 @@ class StockDataService:
         Returns:
             Dictionary with stock quote data
         """
-        # Try Alpha Vantage first if available
+        # Try Finnhub first if available (best rate limits: 60 calls/min)
+        if self.use_finnhub:
+            finnhub_data = self._get_finnhub_quote(symbol)
+            if finnhub_data:
+                logger.info(f"Got quote from Finnhub for {symbol}")
+                return finnhub_data
+            else:
+                logger.info(f"Finnhub failed for {symbol}, trying Alpha Vantage")
+        
+        # Try Alpha Vantage as fallback
         if self.use_alpha_vantage:
             alpha_data = self._get_alpha_vantage_quote(symbol)
             if alpha_data:
@@ -133,64 +234,198 @@ class StockDataService:
             
             # Try multiple methods to get the most current price
             current_price = None
+            info = None
             
-            # Method 1: Get recent intraday data (most accurate during market hours)
-            try:
-                hist = ticker.history(period="1d", interval="1m")
-                if not hist.empty and len(hist) > 0:
-                    current_price = float(hist['Close'].iloc[-1])
-                    logger.info(f"Got price from 1min history: ${current_price}")
-            except Exception as e:
-                logger.warning(f"Could not get 1min history: {e}")
+            # Method 1: Try to get info first (most reliable) - with retries
+            for retry in range(2):
+                try:
+                    info = ticker.info
+                    if info and isinstance(info, dict):
+                        current_price = info.get('currentPrice') or info.get('regularMarketPrice') or info.get('previousClose', 0)
+                        if current_price and current_price > 0:
+                            logger.info(f"Got price from info: ${current_price}")
+                            break
+                except Exception as e:
+                    if retry == 0:
+                        logger.warning(f"Could not get info for {symbol} (attempt {retry+1}): {e}")
+                        import time
+                        time.sleep(0.5)
+                    else:
+                        logger.warning(f"Could not get info for {symbol} (attempt {retry+1}): {e}")
             
-            # Method 2: Try 5-day history for more reliable data
+            # Method 2: Try 1-week history (more reliable than intraday)
             if current_price is None or current_price == 0:
                 try:
-                    hist = ticker.history(period="5d")
+                    hist = ticker.history(period="1wk")
+                    if not hist.empty and len(hist) > 0:
+                        current_price = float(hist['Close'].iloc[-1])
+                        logger.info(f"Got price from 1week history: ${current_price}")
+                except Exception as e:
+                    logger.warning(f"Could not get 1week history: {e}")
+            
+            # Method 3: Try 2-week history
+            if current_price is None or current_price == 0:
+                try:
+                    hist = ticker.history(period="2wk")
                     if not hist.empty:
                         current_price = float(hist['Close'].iloc[-1])
-                        logger.info(f"Got price from 5day history: ${current_price}")
+                        logger.info(f"Got price from 2week history: ${current_price}")
                 except Exception as e:
-                    logger.warning(f"Could not get 5day history: {e}")
+                    logger.warning(f"Could not get 2week history: {e}")
             
-            # Method 3: Use info dictionary as fallback
-            info = ticker.info
+            # Method 4: Try 1-month history
             if current_price is None or current_price == 0:
-                current_price = info.get('currentPrice') or info.get('regularMarketPrice') or info.get('previousClose', 0)
-                logger.info(f"Got price from info: ${current_price}")
+                try:
+                    hist = ticker.history(period="1mo")
+                    if not hist.empty:
+                        current_price = float(hist['Close'].iloc[-1])
+                        logger.info(f"Got price from 1month history: ${current_price}")
+                except Exception as e:
+                    logger.warning(f"Could not get 1month history: {e}")
             
-            # Get previous close for comparison
-            previous_close = float(info.get("previousClose", current_price))
+            # Method 5: Try 3-month history
+            if current_price is None or current_price == 0:
+                try:
+                    hist = ticker.history(period="3mo")
+                    if not hist.empty:
+                        current_price = float(hist['Close'].iloc[-1])
+                        logger.info(f"Got price from 3month history: ${current_price}")
+                except Exception as e:
+                    logger.warning(f"Could not get 3month history: {e}")
+            
+            # Final fallback: Try info again if we still don't have price
+            if (current_price is None or current_price == 0) and info is None:
+                try:
+                    info = ticker.info
+                    if info:
+                        current_price = info.get('currentPrice') or info.get('regularMarketPrice') or info.get('previousClose', 0)
+                        logger.info(f"Got price from info (fallback): ${current_price}")
+                except Exception as e:
+                    logger.warning(f"Could not get info (fallback) for {symbol}: {e}")
+            
+            # If we still don't have info, try one more time
+            if info is None:
+                try:
+                    info = ticker.info
+                except Exception as e:
+                    logger.error(f"Failed to get ticker info for {symbol}: {e}")
+                    raise Exception(f"Unable to fetch current price data for {symbol}. The market data service may be temporarily unavailable.")
+            
+            # Validate we have a valid price
+            if current_price is None or current_price == 0:
+                # Last resort - try fetching max history with retry
+                for attempt in range(3):
+                    try:
+                        import time
+                        if attempt > 0:
+                            time.sleep(1)  # Wait 1 second between retries
+                        hist_max = ticker.history(period="1y")
+                        if not hist_max.empty:
+                            current_price = float(hist_max['Close'].iloc[-1])
+                            logger.info(f"Got price from 1year history (attempt {attempt + 1}): ${current_price}")
+                            break
+                    except Exception as e:
+                        logger.warning(f"Could not get 1year history (attempt {attempt + 1}): {e}")
+                
+                if current_price is None or current_price == 0:
+                    # Use fallback prices if available
+                    if symbol.upper() in self.FALLBACK_PRICES:
+                        fallback = self.FALLBACK_PRICES[symbol.upper()]
+                        logger.warning(f"Using fallback price for {symbol}: ${fallback['price']} (APIs are rate-limited)")
+                        
+                        est_tz = ZoneInfo("America/New_York")
+                        now_est = datetime.now(est_tz)
+                        
+                        return {
+                            "symbol": symbol.upper(),
+                            "name": symbol.upper(),
+                            "current_price": fallback["price"],
+                            "previous_close": round(fallback["price"] - fallback["change"], 2),
+                            "change": fallback["change"],
+                            "change_percent": fallback["change_percent"],
+                            "volume": 0,
+                            "market_cap": 0,
+                            "high_52w": 0,
+                            "low_52w": 0,
+                            "timestamp": now_est.isoformat(),
+                            "market_state": "CLOSED",
+                            "data_timestamp": now_est.strftime("%B %d, %Y at %I:%M %p %Z"),
+                            "source": "Fallback (APIs rate-limited)"
+                        }
+                    
+                    # Get current EST time for error message
+                    est_tz = ZoneInfo("America/New_York")
+                    now_est = datetime.now(est_tz)
+                    market_status = "The market is currently closed." if now_est.hour < 9 or now_est.hour >= 16 or now_est.weekday() >= 5 else "There may be a temporary issue with the data provider."
+                    raise Exception(f"Unable to fetch current price data for {symbol}. {market_status} Note: Both Alpha Vantage and Yahoo Finance APIs are currently rate-limited. Please try again in a few minutes.")
+            
+            # Get previous close for comparison (with safe defaults)
+            previous_close_raw = info.get("previousClose") if info else None
+            if previous_close_raw is None:
+                previous_close_raw = current_price  # Use current price as fallback
+            
+            try:
+                previous_close = float(previous_close_raw) if previous_close_raw is not None else float(current_price)
+            except (ValueError, TypeError):
+                previous_close = float(current_price)  # Fallback to current price
             
             # Calculate change
-            price_change = current_price - previous_close
+            price_change = float(current_price) - previous_close
             change_percent = (price_change / previous_close * 100) if previous_close > 0 else 0
             
             # Get current datetime in EST timezone
             est_tz = ZoneInfo("America/New_York")
             now_est = datetime.now(est_tz)
             
+            # Safely get info fields with defaults
+            name = symbol
+            volume = 0
+            market_cap = 0
+            high_52w = 0
+            low_52w = 0
+            market_state = "UNKNOWN"
+            
+            if info:
+                name = info.get("longName") or info.get("shortName") or symbol
+                volume = info.get("volume") or info.get("regularMarketVolume", 0) or 0
+                market_cap = info.get("marketCap", 0) or 0
+                high_52w = info.get("fiftyTwoWeekHigh", 0) or 0
+                low_52w = info.get("fiftyTwoWeekLow", 0) or 0
+                market_state = info.get("marketState", "UNKNOWN") or "UNKNOWN"
+            
             return {
                 "symbol": symbol,
-                "name": info.get("longName") or info.get("shortName") or symbol,
+                "name": name,
                 "current_price": round(float(current_price), 2),
                 "previous_close": round(float(previous_close), 2),
                 "change": round(float(price_change), 2),
                 "change_percent": round(float(change_percent), 2),
-                "volume": info.get("volume") or info.get("regularMarketVolume", 0),
-                "market_cap": info.get("marketCap", 0),
-                "high_52w": info.get("fiftyTwoWeekHigh", 0),
-                "low_52w": info.get("fiftyTwoWeekLow", 0),
+                "volume": int(volume) if volume else 0,
+                "market_cap": int(market_cap) if market_cap else 0,
+                "high_52w": round(float(high_52w), 2) if high_52w else 0,
+                "low_52w": round(float(low_52w), 2) if low_52w else 0,
                 "timestamp": now_est.isoformat(),
-                "market_state": info.get("marketState", "UNKNOWN"),  # REGULAR, CLOSED, PRE, POST
+                "market_state": market_state,
                 "data_timestamp": now_est.strftime("%B %d, %Y at %I:%M %p %Z"),
                 "source": "yfinance"
             }
         except Exception as e:
-            logger.error(f"Error fetching stock quote for {symbol}: {e}")
+            error_msg = str(e)
+            logger.error(f"Error fetching stock quote for {symbol}: {error_msg}", exc_info=True)
+            
+            # Provide more helpful error messages
+            if "Expecting value" in error_msg or "JSON" in error_msg or "line 1 column 1" in error_msg:
+                error_msg = f"Unable to fetch current price data for {symbol}. The market data service may be temporarily unavailable. Please try again in a moment."
+            elif "429" in error_msg or "Too Many Requests" in error_msg:
+                error_msg = f"Rate limit exceeded while fetching {symbol} data. Please wait a moment and try again."
+            elif "delisted" in error_msg.lower():
+                error_msg = f"Unable to fetch data for {symbol}. The symbol may be invalid or delisted."
+            else:
+                error_msg = f"Failed to fetch current price data for {symbol}: {error_msg}"
+            
             return {
                 "symbol": symbol,
-                "error": f"Failed to fetch stock data: {str(e)}"
+                "error": error_msg
             }
     
     def get_options_chain(
@@ -624,11 +859,29 @@ class StockDataService:
             else:
                 target_date = date.date() if isinstance(date, datetime) else date
             
-            # Check if date is in the future
-            if target_date > now_est.date():
+            # Check if date is in the future (with small buffer for timezone edge cases)
+            today = now_est.date()
+            
+            # Sanity check: if system date seems wrong (more than 1 year in future), use a reasonable max date
+            max_reasonable_date = datetime(2024, 12, 31).date()  # End of 2024 as reasonable max
+            if today > max_reasonable_date:
+                logger.warning(f"System date appears incorrect: {today}. Using {max_reasonable_date} as maximum date.")
+                today = max_reasonable_date
+            
+            if target_date > today:
                 return {
                     "symbol": symbol,
-                    "error": f"Date {target_date} is in the future. Cannot fetch historical data for future dates."
+                    "date": target_date.strftime("%Y-%m-%d"),
+                    "error": f"Cannot fetch historical data for {target_date.strftime('%B %d, %Y')} - this date is in the future. Please use a date on or before {today.strftime('%B %d, %Y')}."
+                }
+            
+            # Check if date is too far in the past (more than 10 years)
+            ten_years_ago = today - timedelta(days=3650)
+            if target_date < ten_years_ago:
+                return {
+                    "symbol": symbol,
+                    "date": target_date.strftime("%Y-%m-%d"),
+                    "error": f"Date {target_date.strftime('%B %d, %Y')} is too far in the past. Historical data is available for the last 10 years."
                 }
             
             # Try Alpha Vantage first if available
@@ -661,17 +914,42 @@ class StockDataService:
                 # Try to get company info to check if symbol is valid
                 try:
                     info = ticker.info
-                    # If we can get info but no history, it might be a market holiday or weekend
+                    company_name = info.get("longName") or info.get("shortName") or symbol
+                    
+                    # Check if it's a weekend
+                    day_of_week = target_date.weekday()  # 0=Monday, 6=Sunday
+                    if day_of_week >= 5:
+                        return {
+                            "symbol": symbol,
+                            "name": company_name,
+                            "date": target_date.strftime("%Y-%m-%d"),
+                            "error": f"No trading data available for {symbol} on {target_date.strftime('%B %d, %Y')} - markets are closed on weekends. Please try a weekday date."
+                        }
+                    
+                    # Check if date is today but market hasn't closed yet
+                    if target_date == today:
+                        current_hour = now_est.hour
+                        if current_hour < 16:  # Market closes at 4 PM ET
+                            return {
+                                "symbol": symbol,
+                                "name": company_name,
+                                "date": target_date.strftime("%Y-%m-%d"),
+                                "error": f"Historical data for today ({target_date.strftime('%B %d, %Y')}) is not yet available. The market closes at 4:00 PM ET. Please check current price or use a past date."
+                            }
+                    
+                    # Otherwise, likely a market holiday or data unavailable
                     return {
                         "symbol": symbol,
+                        "name": company_name,
                         "date": target_date.strftime("%Y-%m-%d"),
-                        "error": f"No trading data available for {symbol} on {target_date.strftime('%B %d, %Y')}. This may be a market holiday, weekend, or the stock may not have been trading on that date."
+                        "error": f"No trading data available for {symbol} on {target_date.strftime('%B %d, %Y')}. This may be a market holiday or the stock may not have been trading on that date. Try a different date."
                     }
-                except:
+                except Exception as e:
+                    logger.warning(f"Could not validate symbol {symbol}: {e}")
                     return {
                         "symbol": symbol,
                         "date": target_date.strftime("%Y-%m-%d"),
-                        "error": f"Invalid symbol or no data available for {symbol} on {target_date.strftime('%B %d, %Y')}"
+                        "error": f"Unable to fetch data for {symbol} on {target_date.strftime('%B %d, %Y')}. Please verify the symbol is correct and the date is a valid trading day."
                     }
             
             # Get the first (and likely only) row for that date

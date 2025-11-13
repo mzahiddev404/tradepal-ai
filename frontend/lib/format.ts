@@ -1,71 +1,57 @@
 /**
- * Formatting utility functions
+ * Formatting utilities
  */
 
 /**
- * Format a number as currency
+ * Format message timestamp
  */
-export function formatCurrency(value: number, currency: string = 'USD'): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
+export function formatMessageTime(timestamp: Date): string {
+  const now = new Date();
+  const messageDate = new Date(timestamp);
+  const diffInSeconds = Math.floor((now.getTime() - messageDate.getTime()) / 1000);
 
-/**
- * Format a number with commas
- */
-export function formatNumber(value: number, decimals: number = 0): string {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  }).format(value);
-}
-
-/**
- * Format a percentage value
- */
-export function formatPercentage(value: number, decimals: number = 2): string {
-  return `${value > 0 ? '+' : ''}${value.toFixed(decimals)}%`;
-}
-
-/**
- * Format a date to a readable string
- */
-export function formatDate(date: Date | string, format: 'short' | 'long' = 'short'): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  
-  if (format === 'long') {
-    return d.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+  if (diffInSeconds < 60) {
+    return "Just now";
   }
-  
-  return d.toLocaleDateString('en-US');
+
+  const diffInMinutes = Math.floor(diffInSeconds / 60);
+  if (diffInMinutes < 60) {
+    return `${diffInMinutes} minute${diffInMinutes > 1 ? "s" : ""} ago`;
+  }
+
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24) {
+    return `${diffInHours} hour${diffInHours > 1 ? "s" : ""} ago`;
+  }
+
+  return messageDate.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 /**
- * Format file size in bytes to human readable format
+ * Format file size
  */
 export function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 Bytes';
-  
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /**
- * Truncate a string to a maximum length
+ * Format currency
  */
-export function truncate(str: string, maxLength: number): string {
-  if (str.length <= maxLength) return str;
-  return `${str.substring(0, maxLength)}...`;
+export function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(amount);
 }
 
+/**
+ * Format percentage
+ */
+export function formatPercentage(value: number, decimals: number = 2): string {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(decimals)}%`;
+}
