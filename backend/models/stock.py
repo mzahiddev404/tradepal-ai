@@ -56,3 +56,15 @@ class HistoricalPriceResponse(BaseModel):
     volume: Optional[int] = None
     timestamp: Optional[str] = None
     error: Optional[str] = None
+
+
+class HistoricalPriceRangeResponse(BaseModel):
+    """Response model for historical stock price range."""
+    symbol: str
+    name: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    trading_days: Optional[int] = None
+    prices: Optional[List[Dict[str, Any]]] = None
+    timestamp: Optional[str] = None
+    error: Optional[str] = None

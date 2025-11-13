@@ -704,6 +704,261 @@ class StockDataService:
                 "date": date if isinstance(date, str) else str(date),
                 "error": f"Failed to fetch historical stock data: {str(e)}"
             }
+    
+    def get_historical_price_range(
+        self, 
+        symbol: str, 
+        days: Optional[int] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> Dict:
+        """
+        Get historical stock prices for a date range.
+        
+        Args:
+            symbol: Stock symbol (e.g., 'SPY', 'TSLA')
+            days: Number of days to look back (default: 5)
+            start_date: Start date in YYYY-MM-DD format (optional)
+            end_date: End date in YYYY-MM-DD format (optional, defaults to today)
+            
+        Returns:
+            Dictionary with historical price data for the date range
+        """
+        try:
+            est_tz = ZoneInfo("America/New_York")
+            now_est = datetime.now(est_tz)
+            today = now_est.date()
+            
+            # Determine date range
+            if days:
+                # Use days parameter
+                # Add buffer for weekends/holidays - multiply by 1.5 to ensure we get enough trading days
+                buffer_days = max(int(days * 1.5), days + 5)  # At least 5 extra days buffer
+                end_date_obj = today
+                start_date_obj = today - timedelta(days=buffer_days)
+            elif start_date and end_date:
+                # Parse provided dates
+                try:
+                    start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
+                    end_date_obj = datetime.strptime(end_date, "%Y-%m-%d").date()
+                except ValueError:
+                    return {
+                        "symbol": symbol,
+                        "error": "Invalid date format. Use YYYY-MM-DD format."
+                    }
+            elif start_date:
+                # Start date only, end is today
+                try:
+                    start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
+                    end_date_obj = today
+                except ValueError:
+                    return {
+                        "symbol": symbol,
+                        "error": "Invalid date format. Use YYYY-MM-DD format."
+                    }
+            else:
+                # Default to 5 days
+                days = 5
+                end_date_obj = today
+                start_date_obj = today - timedelta(days=days)
+            
+            # Validate dates
+            if start_date_obj > end_date_obj:
+                return {
+                    "symbol": symbol,
+                    "error": "Start date must be before end date."
+                }
+            
+            if end_date_obj > today:
+                return {
+                    "symbol": symbol,
+                    "error": "End date cannot be in the future."
+                }
+            
+            # Limit to reasonable range (max 1 year)
+            if (end_date_obj - start_date_obj).days > 365:
+                return {
+                    "symbol": symbol,
+                    "error": "Date range cannot exceed 365 days."
+                }
+            
+            # Try Alpha Vantage first if available
+            alpha_prices = None
+            if self.use_alpha_vantage:
+                try:
+                    url = "https://www.alphavantage.co/query"
+                    params = {
+                        "function": "TIME_SERIES_DAILY",
+                        "symbol": symbol,
+                        "apikey": self.alpha_vantage_api_key,
+                        "outputsize": "compact"
+                    }
+                    
+                    response = requests.get(url, params=params, timeout=10)
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    if "Time Series (Daily)" in data:
+                        time_series = data["Time Series (Daily)"]
+                        alpha_prices = []
+                        for date_str, day_data in sorted(time_series.items()):
+                            date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+                            if start_date_obj <= date_obj <= end_date_obj:
+                                alpha_prices.append({
+                                    "date": date_str,
+                                    "open": round(float(day_data.get("1. open", 0)), 2),
+                                    "high": round(float(day_data.get("2. high", 0)), 2),
+                                    "low": round(float(day_data.get("3. low", 0)), 2),
+                                    "close": round(float(day_data.get("4. close", 0)), 2),
+                                    "volume": int(day_data.get("5. volume", 0))
+                                })
+                        alpha_prices.reverse()  # Most recent first
+                        logger.info(f"Got {len(alpha_prices)} days from Alpha Vantage for {symbol}")
+                except Exception as e:
+                    logger.warning(f"Alpha Vantage range failed for {symbol}: {e}")
+            
+            # Fallback to yfinance
+            ticker = yf.Ticker(symbol)
+            
+            # Get historical data for the date range
+            # Try with a wider range first to account for weekends/holidays
+            hist = ticker.history(
+                start=start_date_obj.strftime("%Y-%m-%d"),
+                end=(end_date_obj + timedelta(days=1)).strftime("%Y-%m-%d")
+            )
+            
+            # If empty, try extending the range further back
+            if hist.empty:
+                logger.warning(f"No data for {symbol} in range {start_date_obj} to {end_date_obj}, trying extended range")
+                extended_start = start_date_obj - timedelta(days=10)  # Try 10 more days back
+                hist = ticker.history(
+                    start=extended_start.strftime("%Y-%m-%d"),
+                    end=(end_date_obj + timedelta(days=1)).strftime("%Y-%m-%d")
+                )
+            
+            if hist.empty:
+                # Try to get company info to check if symbol is valid
+                try:
+                    info = ticker.info
+                    company_name = info.get("longName") or info.get("shortName") or symbol
+                    # If we can get info, symbol is valid but no historical data
+                    # Check if it's a weekend/holiday issue
+                    day_of_week = today.weekday()  # 0=Monday, 6=Sunday
+                    if day_of_week >= 5:  # Weekend
+                        return {
+                            "symbol": symbol,
+                            "name": company_name,
+                            "error": f"No recent trading data available for {symbol}. The market may be closed (weekend/holiday). Try asking for a specific date or wait until market hours."
+                        }
+                    else:
+                        return {
+                            "symbol": symbol,
+                            "name": company_name,
+                            "error": f"No trading data available for {symbol} in the specified date range. This may be due to market holidays or the symbol may not have been trading during this period. Try a different date range or a specific date."
+                        }
+                except Exception as e:
+                    logger.error(f"Error validating symbol {symbol}: {e}")
+                    return {
+                        "symbol": symbol,
+                        "error": f"Unable to fetch data for {symbol}. Please verify the symbol is correct and try again."
+                    }
+            
+            # Get company name
+            try:
+                info = ticker.info
+                company_name = info.get("longName") or info.get("shortName") or symbol
+            except:
+                company_name = symbol
+            
+            # Convert to list of dictionaries (most recent first)
+            prices = []
+            for date, row in hist.iterrows():
+                date_str = date.strftime("%Y-%m-%d")
+                # Convert date index to date object
+                if hasattr(date, 'date'):
+                    date_obj = date.date()
+                elif isinstance(date, str):
+                    date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+                else:
+                    try:
+                        date_obj = date.to_pydatetime().date()
+                    except:
+                        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+                
+                # Filter to requested range (use requested_start_date if available, otherwise start_date_obj)
+                filter_start = requested_start_date if 'requested_start_date' in locals() else start_date_obj
+                if filter_start <= date_obj <= end_date_obj:
+                    prices.append({
+                        "date": date_str,
+                        "open": round(float(row['Open']), 2),
+                        "high": round(float(row['High']), 2),
+                        "low": round(float(row['Low']), 2),
+                        "close": round(float(row['Close']), 2),
+                        "volume": int(row['Volume']) if 'Volume' in row else 0
+                    })
+            
+            # If we still have no prices after filtering, use all available data (up to requested days)
+            if not prices and not hist.empty:
+                logger.warning(f"No prices in filtered range, using all available recent data")
+                filter_start = requested_start_date if 'requested_start_date' in locals() else start_date_obj
+                for date, row in hist.iterrows():
+                    date_str = date.strftime("%Y-%m-%d")
+                    if hasattr(date, 'date'):
+                        date_obj = date.date()
+                    elif isinstance(date, str):
+                        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+                    else:
+                        try:
+                            date_obj = date.to_pydatetime().date()
+                        except:
+                            date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+                    
+                    # Include if within requested range or if it's recent data
+                    if date_obj >= filter_start or len(prices) < days:
+                        prices.append({
+                            "date": date_str,
+                            "open": round(float(row['Open']), 2),
+                            "high": round(float(row['High']), 2),
+                            "low": round(float(row['Low']), 2),
+                            "close": round(float(row['Close']), 2),
+                            "volume": int(row['Volume']) if 'Volume' in row else 0
+                        })
+                        if len(prices) >= days:
+                            break
+            
+            # Use Alpha Vantage data if available and more complete
+            if alpha_prices and len(alpha_prices) >= len(prices):
+                prices = alpha_prices
+            
+            # If still no prices, return error
+            if not prices:
+                return {
+                    "symbol": symbol,
+                    "name": company_name if 'company_name' in locals() else symbol,
+                    "error": f"No trading data available for {symbol} in the specified date range. This may be due to market holidays or the symbol may not have been trading during this period."
+                }
+            
+            # Reverse to show oldest first (for trend analysis)
+            prices.reverse()
+            
+            # Use requested start date for response if available
+            response_start_date = requested_start_date.strftime("%Y-%m-%d") if 'requested_start_date' in locals() else start_date_obj.strftime("%Y-%m-%d")
+            
+            return {
+                "symbol": symbol,
+                "name": company_name,
+                "start_date": response_start_date,
+                "end_date": end_date_obj.strftime("%Y-%m-%d"),
+                "trading_days": len(prices),
+                "prices": prices,
+                "timestamp": now_est.isoformat()
+            }
+        except Exception as e:
+            logger.error(f"Error fetching historical price range for {symbol}: {e}")
+            return {
+                "symbol": symbol,
+                "error": f"Failed to fetch historical stock data range: {str(e)}"
+            }
 
 
 # Global stock data service instance

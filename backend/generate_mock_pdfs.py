@@ -113,6 +113,85 @@ def create_billing_doc(filename):
     print(f"✓ Created: {filename}")
 
 
+def create_brokerage_doc(filename):
+    """Create a concise brokerage and trading guide PDF."""
+    doc = SimpleDocTemplate(filename, pagesize=letter)
+    story = []
+    styles = getSampleStyleSheet()
+    
+    # Title
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor='darkblue',
+        spaceAfter=30,
+        alignment=TA_CENTER
+    )
+    
+    story.append(Paragraph("TradePal Brokerage & Trading Guide", title_style))
+    story.append(Spacer(1, 0.2*inch))
+    
+    # Trading Fees
+    content = [
+        ("Trading Fees & Commissions", styles['Heading2']),
+        ("Stock Trades: $0 commission per trade", styles['Normal']),
+        ("Options Contracts: $0.65 per contract", styles['Normal']),
+        ("No account maintenance fees", styles['Normal']),
+        ("", styles['Normal']),
+        
+        ("Day Trading Rules", styles['Heading2']),
+        ("Pattern Day Trader (PDT) Rule:", styles['Heading3']),
+        ("• Minimum equity requirement: $25,000", styles['Normal']),
+        ("• Definition: 4 or more day trades within 5 business days", styles['Normal']),
+        ("• Day trade: Opening and closing a position on the same day", styles['Normal']),
+        ("• If flagged as PDT with less than $25k: Account restricted to closing positions only for 90 days", styles['Normal']),
+        ("• Day trading buying power: Up to 4x your maintenance margin excess", styles['Normal']),
+        ("", styles['Normal']),
+        
+        ("Margin Requirements", styles['Heading2']),
+        ("Initial Margin: 50% of stock purchase value", styles['Normal']),
+        ("Maintenance Margin: 25% of stock value (must maintain this level)", styles['Normal']),
+        ("Margin Call: Occurs when equity falls below maintenance margin requirement", styles['Normal']),
+        ("Margin Interest: Typically 8-12% APR, charged on borrowed funds", styles['Normal']),
+        ("Minimum for Margin Account: $2,000", styles['Normal']),
+        ("", styles['Normal']),
+        
+        ("Settlement Periods", styles['Heading2']),
+        ("Stock Trades: T+2 settlement (trade date + 2 business days)", styles['Normal']),
+        ("Options: T+1 settlement", styles['Normal']),
+        ("Funds from stock sales available: 2 business days after trade", styles['Normal']),
+        ("", styles['Normal']),
+        
+        ("Options Trading Levels", styles['Heading2']),
+        ("Level 1: Covered calls, cash-secured puts", styles['Normal']),
+        ("Level 2: Long calls/puts, spreads (requires approval)", styles['Normal']),
+        ("Level 3: Naked options writing (requires approval and experience)", styles['Normal']),
+        ("Level 4: Complex multi-leg strategies (requires approval)", styles['Normal']),
+        ("", styles['Normal']),
+        
+        ("Account Types", styles['Heading2']),
+        ("Cash Account: No margin borrowing, T+2 settlement applies, no pattern day trader restrictions", styles['Normal']),
+        ("Margin Account: Allows borrowing, requires $2,000 minimum, subject to PDT rule", styles['Normal']),
+        ("IRA Account: Cash only, no margin, no day trading restrictions", styles['Normal']),
+        ("", styles['Normal']),
+        
+        ("Important Trading Rules", styles['Heading2']),
+        ("Good Faith Violation (GFV): Buying and selling before funds settle - 3 violations result in 90-day restriction", styles['Normal']),
+        ("Free Riding Violation: Buying securities without sufficient funds - immediate 90-day restriction", styles['Normal']),
+        ("Wash Sale Rule: Selling at a loss and repurchasing within 30 days - loss disallowed for tax purposes", styles['Normal']),
+        ("Short Selling: Requires margin account, must locate shares to borrow, subject to uptick rule", styles['Normal']),
+    ]
+    
+    for text, style in content:
+        if text:
+            story.append(Paragraph(text, style))
+        story.append(Spacer(1, 0.1*inch))
+    
+    doc.build(story)
+    print(f"✓ Created: {filename}")
+
+
 def create_technical_doc(filename):
     """Create a technical documentation PDF."""
     doc = SimpleDocTemplate(filename, pagesize=letter)
@@ -311,6 +390,7 @@ def main():
     create_billing_doc(os.path.join(mock_dir, "billing_pricing_guide.pdf"))
     create_technical_doc(os.path.join(mock_dir, "technical_documentation.pdf"))
     create_policy_doc(os.path.join(mock_dir, "terms_and_privacy.pdf"))
+    create_brokerage_doc(os.path.join(mock_dir, "brokerage_trading_guide.pdf"))
     
     print()
     print(f"✓ All documents created in: {mock_dir}")

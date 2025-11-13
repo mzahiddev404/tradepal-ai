@@ -165,7 +165,18 @@ export function ChatContainer() {
           </ScrollArea>
 
           <div className="border-t-2 border-teal-100 bg-gradient-to-t from-teal-50 via-cyan-50 to-transparent p-4 sm:p-6">
-            <ChatInput onSend={handleSendMessage} disabled={isLoading} />
+            <ChatInput 
+              onSend={handleSendMessage} 
+              disabled={isLoading}
+              suggestions={messages.length === 0 ? [
+                "What's the current Tesla stock price?",
+                "What was TSLA's opening price yesterday?",
+                "Analyze sentiment correlation for TSLA and SPY",
+                "What are your pricing plans?",
+                "How do I troubleshoot connection issues?",
+                "What is your privacy policy?",
+              ] : undefined}
+            />
           </div>
         </>
       )}

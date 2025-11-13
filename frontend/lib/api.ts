@@ -17,6 +17,7 @@ export interface ChatRequest {
 export interface ChatResponse {
   message: string;
   status: string;
+  agent_name?: string;
 }
 
 /**

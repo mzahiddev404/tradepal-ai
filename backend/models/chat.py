@@ -24,6 +24,7 @@ class ChatResponse(BaseModel):
     """Response from chat endpoint."""
     message: str = Field(..., description="AI response message")
     status: str = Field(default="success", description="Response status")
+    agent_name: Optional[str] = Field(default=None, description="Name of the agent that handled the request")
 
 
 

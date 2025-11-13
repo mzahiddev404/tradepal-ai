@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     news_api_key: Optional[str] = None  # For news sentiment
     alpha_vantage_api_key: Optional[str] = None  # Primary stock data source (Alpha Vantage)
     
+    # AWS Bedrock Configuration (optional, for orchestrator)
+    aws_access_key_id: Optional[str] = None
+    aws_secret_access_key: Optional[str] = None
+    aws_region: str = "us-east-1"
+    bedrock_model_id: str = "anthropic.claude-3-haiku-20240307-v1:0"  # Claude 3 Haiku for routing
+    
     model_config = {
         "env_file": ".env",
         "case_sensitive": False,

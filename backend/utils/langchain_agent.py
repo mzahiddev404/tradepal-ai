@@ -80,10 +80,14 @@ STOCK PRICES:
 - Example: If data says $434.47, you say "$434.47" - NOT "$1,000" or any other number
 
 DOCUMENT CONTEXT (RAG):
-- When [DOCUMENT CONTEXT] is provided, use it to answer questions about policies, billing, technical documentation
+- When [DOCUMENT CONTEXT] is provided, use it to answer questions about:
+  * Brokerage information: Trading fees, day trading rules (PDT), margin requirements, settlement periods
+  * Billing and pricing: Subscription plans, payment methods, overage charges
+  * Technical documentation: API usage, troubleshooting, features
+  * Policies: Terms of service, privacy policy, compliance
 - Cite specific information from documents when relevant
 - If document context contradicts stock data, prioritize stock data for price-related queries
-- For general questions, use document context as primary source
+- For brokerage questions (fees, PDT rule, margin, etc.), use document context as primary source
 
 MARKET SENTIMENT (CRITICAL - ALWAYS INCLUDE):
 - When sentiment data is provided, you MUST include ALL sentiment details in your response
@@ -107,6 +111,12 @@ BANNED PHRASES:
 - "Approximately"
 - "Around"
 - "Roughly"
+- "I don't have access to"
+- "I cannot access"
+- "I'm unable to access"
+- "You may check financial news websites" (when data is provided)
+
+CRITICAL: If [LIVE MARKET DATA] or [HISTORICAL MARKET DATA] sections are provided, you MUST use that data. Never say you don't have access when data is provided.
 
 BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
     
@@ -165,7 +175,7 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
         
         return messages
     
-    def _check_for_stock_query(self, message: str) -> Tuple[bool, Optional[str], Optional[str]]:
+    def _check_for_stock_query(self, message: str) -> Tuple[bool, Optional[str], Optional[str], Optional[Dict]]:
         """
         Check if message is asking for stock information and detect dates.
         
@@ -210,48 +220,102 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
                 is_stock_query = True
                 break
         
-        # Detect date in message
+        # Detect date or date range in message
         date = None
+        date_range = None  # Will be a dict with 'days' or 'start_date'/'end_date'
         est_tz = ZoneInfo("America/New_York")
         now_est = datetime.now(est_tz)
+        today = now_est.date()
         
-        # Check for YYYY-MM-DD format
-        date_pattern = r'\b(\d{4}-\d{2}-\d{2})\b'
-        match = re.search(date_pattern, message)
-        if match:
-            date = match.group(1)
+        # Check for date range patterns first
+        range_patterns = {
+            'past few days': 5,
+            'last few days': 5,
+            'past week': 7,
+            'last week': 7,
+            'past month': 30,
+            'last month': 30,
+            'past year': 365,
+            'last year': 365,
+        }
+        
+        # Check for "past X days" or "last X days" patterns
+        days_match = re.search(r'(?:past|last)\s+(\d+)\s+days?', message_lower)
+        if days_match:
+            days = int(days_match.group(1))
+            date_range = {'days': min(days, 365)}  # Cap at 365 days
         else:
-            # Check for relative dates
-            if 'yesterday' in message_lower:
-                date = (now_est - timedelta(days=1)).strftime("%Y-%m-%d")
-            elif 'last week' in message_lower or 'a week ago' in message_lower:
-                date = (now_est - timedelta(days=7)).strftime("%Y-%m-%d")
-            elif 'last month' in message_lower or 'a month ago' in message_lower:
-                date = (now_est - timedelta(days=30)).strftime("%Y-%m-%d")
-            elif 'last year' in message_lower or 'a year ago' in message_lower:
-                date = (now_est - timedelta(days=365)).strftime("%Y-%m-%d")
-            else:
-                # Try to parse dates like "January 15, 2024", "Jan 15 2024", "1/15/2024"
-                try:
-                    from dateutil import parser
-                    # Look for date-like patterns
-                    date_patterns = [
-                        r'\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b',
-                        r'\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},?\s+\d{4}\b',
-                        r'\b\d{1,2}/\d{1,2}/\d{4}\b',
-                        r'\b\d{1,2}-\d{1,2}-\d{4}\b',
-                    ]
-                    
-                    for pattern in date_patterns:
-                        match = re.search(pattern, message, re.IGNORECASE)
-                        if match:
-                            parsed_date = parser.parse(match.group(0), fuzzy=True)
-                            date = parsed_date.strftime("%Y-%m-%d")
-                            break
-                except (ImportError, ValueError, Exception):
-                    pass
+            # Check for common range phrases
+            for phrase, days in range_patterns.items():
+                if phrase in message_lower:
+                    date_range = {'days': days}
+                    break
         
-        return is_stock_query, symbol, date
+        # If no range detected, check for single date
+        if not date_range:
+            # Check for YYYY-MM-DD format
+            date_pattern = r'\b(\d{4}-\d{2}-\d{2})\b'
+            match = re.search(date_pattern, message)
+            if match:
+                date = match.group(1)
+            else:
+                # Check for relative dates
+                if 'yesterday' in message_lower or 'previous day' in message_lower or "previous day's" in message_lower:
+                    date = (now_est - timedelta(days=1)).strftime("%Y-%m-%d")
+                elif 'last week' in message_lower or 'a week ago' in message_lower:
+                    date = (now_est - timedelta(days=7)).strftime("%Y-%m-%d")
+                elif 'last month' in message_lower or 'a month ago' in message_lower:
+                    date = (now_est - timedelta(days=30)).strftime("%Y-%m-%d")
+                elif 'last year' in message_lower or 'a year ago' in message_lower:
+                    date = (now_est - timedelta(days=365)).strftime("%Y-%m-%d")
+                else:
+                    # Try to parse dates like "January 15, 2024", "Jan 15 2024", "1/15/2024", "november 10"
+                    try:
+                        from dateutil import parser
+                        # Look for date-like patterns (with and without year)
+                        date_patterns = [
+                            r'\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}\b',
+                            r'\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},?\s+\d{4}\b',
+                            r'\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}\b',  # Without year
+                            r'\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b',  # Without year
+                            r'\b\d{1,2}/\d{1,2}/\d{4}\b',
+                            r'\b\d{1,2}-\d{1,2}-\d{4}\b',
+                            r'\b\d{1,2}/\d{1,2}\b',  # Without year
+                        ]
+                        
+                        for pattern in date_patterns:
+                            match = re.search(pattern, message, re.IGNORECASE)
+                            if match:
+                                try:
+                                    parsed_date = parser.parse(match.group(0), fuzzy=True, default=now_est)
+                                    parsed_date_obj = parsed_date.date() if hasattr(parsed_date, 'date') else parsed_date
+                                    # If parsed date is in the future, adjust to current or previous year
+                                    if parsed_date_obj > today:
+                                        # If same month and day is before today, assume current year
+                                        if parsed_date_obj.month == today.month and parsed_date_obj.day < today.day:
+                                            if hasattr(parsed_date, 'replace'):
+                                                parsed_date = parsed_date.replace(year=today.year)
+                                                parsed_date_obj = parsed_date.date()
+                                            else:
+                                                from datetime import date as date_class
+                                                parsed_date_obj = date_class(today.year, parsed_date_obj.month, parsed_date_obj.day)
+                                        else:
+                                            # Otherwise assume previous year
+                                            if hasattr(parsed_date, 'replace'):
+                                                parsed_date = parsed_date.replace(year=parsed_date.year - 1)
+                                                parsed_date_obj = parsed_date.date()
+                                            else:
+                                                from datetime import date as date_class
+                                                parsed_date_obj = date_class(parsed_date_obj.year - 1, parsed_date_obj.month, parsed_date_obj.day)
+                                    date = parsed_date_obj.strftime("%Y-%m-%d")
+                                    break
+                                except (ValueError, Exception) as e:
+                                    logger.debug(f"Date parsing error: {e}")
+                                    continue
+                    except (ImportError, ValueError, Exception):
+                        pass
+        
+        return is_stock_query, symbol, date, date_range
     
     def _is_unclear_query(self, message: str, symbol: Optional[str]) -> bool:
         """
@@ -315,8 +379,20 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
         if history is None:
             history = []
         
-        # Check if this is a stock-related query and detect date
-        is_stock_query, symbol, date = self._check_for_stock_query(message)
+        message_lower = message.lower()
+        
+        # Check if this is a stock-related query and detect date/range
+        result = self._check_for_stock_query(message)
+        if len(result) == 4:
+            is_stock_query, symbol, date, date_range = result
+        else:
+            # Backward compatibility - unpack 3-tuple
+            is_stock_query, symbol, date = result
+            date_range = None
+        
+        # Check for sentiment correlation analysis queries
+        correlation_keywords = ['correlation', 'correlate', 'sentiment', 'analyze', 'analysis', 'relationship', 'predict', 'guide', 'fluff']
+        is_correlation_query = any(keyword in message_lower for keyword in correlation_keywords) and any(sym in message_lower for sym in ['tsla', 'spy', 'tesla', 's&p'])
         
         # Retrieve documents using RAG (for non-stock queries or to supplement stock queries)
         document_context = ""
@@ -331,26 +407,73 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
         # Check if query is unclear but symbol is detected
         is_unclear = self._is_unclear_query(message, symbol)
         
+        # Check for sentiment correlation analysis queries
+        correlation_keywords = ['correlation', 'correlate', 'sentiment', 'analyze', 'analysis', 'relationship', 'predict', 'guide', 'fluff']
+        is_correlation_query = any(keyword in message_lower for keyword in correlation_keywords) and any(sym in message_lower for sym in ['tsla', 'spy', 'tesla', 's&p'])
+        
+        # If correlation analysis query, fetch correlation data
+        if is_correlation_query:
+            try:
+                from utils.sentiment_correlation import sentiment_correlation_analyzer
+                
+                # Detect symbols mentioned
+                detected_symbols = []
+                if 'tsla' in message_lower or 'tesla' in message_lower:
+                    detected_symbols.append('TSLA')
+                if 'spy' in message_lower or 's&p' in message_lower:
+                    detected_symbols.append('SPY')
+                
+                # Default to both if none specified
+                if not detected_symbols:
+                    detected_symbols = ['TSLA', 'SPY']
+                
+                # Get correlation analysis
+                if len(detected_symbols) == 1:
+                    correlation_data = sentiment_correlation_analyzer.analyze_correlation(detected_symbols[0], days=30)
+                else:
+                    correlation_data = sentiment_correlation_analyzer.compare_symbols(detected_symbols, days=30)
+                
+                if "error" not in correlation_data:
+                    # Format correlation context for LLM
+                    correlation_context = self._format_correlation_context(correlation_data, detected_symbols)
+                    stock_context = correlation_context
+                    stock_data = correlation_data
+                else:
+                    stock_context = f"\n\n[Error: {correlation_data.get('error', 'Unknown error')}]\n"
+                    stock_data = correlation_data
+            except Exception as e:
+                logger.error(f"Error fetching correlation data: {e}")
+                stock_context = f"\n\n[Error: Could not analyze sentiment correlation: {str(e)}]\n"
+                stock_data = {"error": str(e)}
+        
         # If stock query with symbol, fetch data (current or historical)
-        stock_context = ""
+        stock_context = stock_context if 'stock_context' in locals() else ""
         is_historical = False
-        stock_data = {}
+        stock_data = stock_data if 'stock_data' in locals() else {}
         est_tz = ZoneInfo("America/New_York")
         current_time = datetime.now(est_tz).strftime("%B %d, %Y at %I:%M %p %Z")
-        if is_stock_query and symbol:
+        if is_stock_query and symbol and not is_correlation_query:
             try:
-                
-                # Use historical data if date is detected, otherwise use current quote
-                if date:
+                # Use historical range if date_range is detected
+                if date_range:
+                    days = date_range.get('days', 5)
+                    stock_data = stock_data_service.get_historical_price_range(symbol, days=days)
+                    is_historical = True
+                    is_range = True
+                # Use historical data if single date is detected
+                elif date:
                     stock_data = stock_data_service.get_historical_price(symbol, date)
                     is_historical = True
+                    is_range = False
+                # Otherwise use current quote
                 else:
                     stock_data = stock_data_service.get_stock_quote(symbol)
                     is_historical = False
+                    is_range = False
                 
                 # Fetch sentiment data (only for current quotes, not historical)
                 sentiment_data = None
-                if not is_historical and "error" not in stock_data:
+                if not is_historical and not is_range and "error" not in stock_data:
                     try:
                         sentiment_data = sentiment_analyzer.get_stock_sentiment(symbol)
                     except Exception as e:
@@ -359,53 +482,100 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
                 
                 if "error" not in stock_data:
                     if is_historical:
-                        # Historical price data
-                        historical_date = stock_data.get('data_timestamp', stock_data.get('date', date))
-                        close_price = stock_data.get('close', 0)
-                        open_price = stock_data.get('open', 0)
-                        high_price = stock_data.get('high', 0)
-                        low_price = stock_data.get('low', 0)
-                        volume = stock_data.get('volume', 0)
-                        
-                        stock_context = f"\n\n{'='*70}\n"
-                        stock_context += f"📅 HISTORICAL MARKET DATA - {symbol} 📅\n"
-                        stock_context += f"Date: {historical_date}\n"
-                        stock_context += f"Retrieved: {current_time}\n"
-                        stock_context += f"{'='*70}\n\n"
-                        
-                        if stock_data.get('name'):
-                            stock_context += f"Company: {stock_data['name']} ({symbol})\n\n"
-                        
-                        # CRITICAL PRICE INFORMATION - ABSOLUTELY MUST USE THIS
-                        stock_context += f"\n{'🚨'*25}\n"
-                        stock_context += f"⚠️  DO NOT HALLUCINATE - USE THIS EXACT PRICE ⚠️\n"
-                        stock_context += f"{'🚨'*25}\n\n"
-                        stock_context += f"╔{'═'*50}╗\n"
-                        stock_context += f"║  CLOSING PRICE FOR {symbol} ON {historical_date}: ${close_price:<28} ║\n"
-                        stock_context += f"╚{'═'*50}╝\n\n"
-                        stock_context += f"THIS IS THE ONLY CORRECT PRICE. DO NOT USE ANY OTHER NUMBER.\n"
-                        stock_context += f"NOT $1000, NOT $500, ONLY ${close_price}\n\n"
-                        
-                        stock_context += f"Open: ${open_price:.2f}\n"
-                        stock_context += f"High: ${high_price:.2f}\n"
-                        stock_context += f"Low: ${low_price:.2f}\n"
-                        stock_context += f"Close: ${close_price:.2f}\n"
-                        if volume:
-                            stock_context += f"Volume: {volume:,} shares\n"
-                        
-                        stock_context += f"\n{'='*70}\n"
-                        stock_context += f"⚠️  MANDATORY RESPONSE FORMAT ⚠️\n"
-                        stock_context += f"{'='*70}\n"
-                        stock_context += f"YOU MUST SAY:\n"
-                        stock_context += f"'On {historical_date}, {symbol} closed at ${close_price}'\n\n"
-                        stock_context += f"VERIFICATION CHECKS:\n"
-                        stock_context += f"✓ Price = ${close_price}? YES = Correct | NO = Wrong\n"
-                        stock_context += f"✓ Date included? YES = Correct | NO = Wrong\n"
-                        stock_context += f"✓ Used provided data only? YES = Correct | NO = Wrong\n"
-                        stock_context += f"{'='*70}\n\n"
-                        stock_context += f"FINAL REMINDER: The closing price on {historical_date} was ${close_price}, not any other number.\n"
-                        stock_context += f"If you say anything other than ${close_price}, you are WRONG.\n"
-                        stock_context += f"{'='*70}\n"
+                        # Check if this is a date range or single date
+                        if date_range and 'prices' in stock_data:
+                            # Historical price range data
+                            prices = stock_data.get('prices', [])
+                            start_date = stock_data.get('start_date', '')
+                            end_date = stock_data.get('end_date', '')
+                            trading_days = stock_data.get('trading_days', len(prices))
+                            
+                            stock_context = f"\n\n{'='*70}\n"
+                            stock_context += f"📊 HISTORICAL PRICE RANGE - {symbol} 📊\n"
+                            stock_context += f"Date Range: {start_date} to {end_date} ({trading_days} trading days)\n"
+                            stock_context += f"{'='*70}\n\n"
+                            stock_context += "Date       | Open    | High    | Low     | Close   | Volume\n"
+                            stock_context += "-" * 70 + "\n"
+                            
+                            for price_day in prices:
+                                date_str = price_day.get('date', '')
+                                open_p = price_day.get('open', 0)
+                                high_p = price_day.get('high', 0)
+                                low_p = price_day.get('low', 0)
+                                close_p = price_day.get('close', 0)
+                                vol = price_day.get('volume', 0)
+                                stock_context += f"{date_str} | ${open_p:>7.2f} | ${high_p:>7.2f} | ${low_p:>7.2f} | ${close_p:>7.2f} | {vol:>10,}\n"
+                            
+                            stock_context += f"\n{'='*70}\n"
+                            stock_context += f"TREND ANALYSIS:\n"
+                            if len(prices) >= 2:
+                                first_close = prices[0].get('close', 0)
+                                last_close = prices[-1].get('close', 0)
+                                change = last_close - first_close
+                                change_pct = (change / first_close * 100) if first_close > 0 else 0
+                                stock_context += f"- First Close ({prices[0].get('date', '')}): ${first_close:.2f}\n"
+                                stock_context += f"- Last Close ({prices[-1].get('date', '')}): ${last_close:.2f}\n"
+                                stock_context += f"- Change: ${change:.2f} ({change_pct:+.2f}%)\n"
+                            
+                            stock_context += f"\n⚠️ CRITICAL: Use ONLY these exact prices from the data above. DO NOT use any other numbers.\n"
+                            stock_context += f"Show the trend and pattern clearly to help with trading decisions.\n"
+                        else:
+                            # Single historical date
+                            historical_date = stock_data.get('data_timestamp', stock_data.get('date', date))
+                            close_price = stock_data.get('close', 0)
+                            open_price = stock_data.get('open', 0)
+                            high_price = stock_data.get('high', 0)
+                            low_price = stock_data.get('low', 0)
+                            volume = stock_data.get('volume', 0)
+                            
+                            stock_context = f"\n\n{'='*70}\n"
+                            stock_context += f"📅 HISTORICAL MARKET DATA - {symbol} 📅\n"
+                            stock_context += f"Date: {historical_date}\n"
+                            stock_context += f"Retrieved: {current_time}\n"
+                            stock_context += f"{'='*70}\n\n"
+                            
+                            if stock_data.get('name'):
+                                stock_context += f"Company: {stock_data['name']} ({symbol})\n\n"
+                            
+                            # CRITICAL PRICE INFORMATION - ABSOLUTELY MUST USE THIS
+                            stock_context += f"\n{'🚨'*25}\n"
+                            stock_context += f"⚠️  DO NOT HALLUCINATE - USE THIS EXACT PRICE ⚠️\n"
+                            stock_context += f"{'🚨'*25}\n\n"
+                            stock_context += f"╔{'═'*50}╗\n"
+                            stock_context += f"║  CLOSING PRICE FOR {symbol} ON {historical_date}: ${close_price:<28} ║\n"
+                            stock_context += f"╚{'═'*50}╝\n\n"
+                            stock_context += f"THIS IS THE ONLY CORRECT PRICE. DO NOT USE ANY OTHER NUMBER.\n"
+                            stock_context += f"NOT $1000, NOT $500, ONLY ${close_price}\n\n"
+                            
+                            stock_context += f"╔{'═'*50}╗\n"
+                            stock_context += f"║  OPENING PRICE FOR {symbol} ON {historical_date}: ${open_price:<28} ║\n"
+                            stock_context += f"╚{'═'*50}╝\n\n"
+                            stock_context += f"COMPLETE PRICE DATA FOR {symbol} ON {historical_date}:\n"
+                            stock_context += f"Open: ${open_price:.2f}\n"
+                            stock_context += f"High: ${high_price:.2f}\n"
+                            stock_context += f"Low: ${low_price:.2f}\n"
+                            stock_context += f"Close: ${close_price:.2f}\n"
+                            if volume:
+                                stock_context += f"Volume: {volume:,} shares\n"
+                            
+                            stock_context += f"\n{'='*70}\n"
+                            stock_context += f"⚠️  MANDATORY RESPONSE FORMAT ⚠️\n"
+                            stock_context += f"{'='*70}\n"
+                            stock_context += f"YOU MUST SAY:\n"
+                            stock_context += f"'On {historical_date}, {symbol} opened at ${open_price:.2f} and closed at ${close_price:.2f}'\n"
+                            stock_context += f"OR if asked specifically:\n"
+                            stock_context += f"- Opening price: 'On {historical_date}, {symbol} opened at ${open_price:.2f}'\n"
+                            stock_context += f"- Closing price: 'On {historical_date}, {symbol} closed at ${close_price:.2f}'\n\n"
+                            stock_context += f"VERIFICATION CHECKS:\n"
+                            stock_context += f"✓ Opening price = ${open_price:.2f}? YES = Correct | NO = Wrong\n"
+                            stock_context += f"✓ Closing price = ${close_price:.2f}? YES = Correct | NO = Wrong\n"
+                            stock_context += f"✓ Date included? YES = Correct | NO = Wrong\n"
+                            stock_context += f"✓ Used provided data only? YES = Correct | NO = Wrong\n"
+                            stock_context += f"{'='*70}\n\n"
+                            stock_context += f"FINAL REMINDER: The opening price on {historical_date} was ${open_price:.2f} and closing price was ${close_price:.2f}.\n"
+                            stock_context += f"If you say anything other than these exact numbers, you are WRONG.\n"
+                            stock_context += f"NEVER say you don't have access - the data is RIGHT HERE.\n"
+                            stock_context += f"{'='*70}\n"
                         
                         logger.info(f"[HISTORICAL] Stock data for {symbol} on {date}: CLOSE=${close_price}")
                     else:
@@ -599,6 +769,12 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
                 name = stock_data.get('name', symbol)
                 return f"{{\n  \"symbol\": \"{symbol}\",\n  \"name\": \"{name}\",\n  \"date\": \"{stock_data.get('date', date)}\",\n  \"close\": {close_price},\n  \"open\": {stock_data.get('open', 0)},\n  \"high\": {stock_data.get('high', 0)},\n  \"low\": {stock_data.get('low', 0)}\n}}"
         
+        # Handle error cases - provide helpful error message
+        if symbol and stock_data and "error" in stock_data:
+            error_msg = stock_data.get("error", "Unknown error")
+            # Return helpful error message instead of generic "no access" message
+            return f"I encountered an issue fetching historical data for {symbol}: {error_msg}. Please try a different date or verify the stock symbol is correct."
+        
         # If we have stock data but query wasn't unclear, ensure we still return the data
         # This handles cases where LLM might not use the stock_context properly
         if symbol and stock_data and "error" not in stock_data and stock_context:
@@ -704,6 +880,107 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
         
         return response_text
     
+    def _format_correlation_context(self, correlation_data: Dict, symbols: List[str]) -> str:
+        """
+        Format correlation analysis data for LLM context.
+        
+        Args:
+            correlation_data: Correlation analysis results
+            symbols: List of symbols analyzed
+            
+        Returns:
+            Formatted context string
+        """
+        if len(symbols) == 1:
+            # Single symbol analysis
+            symbol = symbols[0]
+            price_analysis = correlation_data.get("price_analysis", {})
+            current_sentiment = correlation_data.get("current_sentiment", {})
+            insights = correlation_data.get("correlation_insights", [])
+            recommendations = correlation_data.get("recommendations", [])
+            
+            context = f"\n\n{'='*70}\n"
+            context += f"📊 SENTIMENT-PRICE CORRELATION ANALYSIS - {symbol} 📊\n"
+            context += f"{'='*70}\n\n"
+            
+            # Price analysis
+            context += f"PRICE ANALYSIS:\n"
+            context += f"- Period: {correlation_data.get('analysis_period', {}).get('start_date', 'N/A')} to {correlation_data.get('analysis_period', {}).get('end_date', 'N/A')}\n"
+            context += f"- Trading Days: {correlation_data.get('analysis_period', {}).get('trading_days', 0)}\n"
+            context += f"- First Close: ${price_analysis.get('first_close', 0):.2f}\n"
+            context += f"- Last Close: ${price_analysis.get('last_close', 0):.2f}\n"
+            context += f"- Total Change: ${price_analysis.get('total_change', 0):.2f} ({price_analysis.get('total_change_pct', 0):+.2f}%)\n"
+            context += f"- Trend: {price_analysis.get('trend', 'UNKNOWN')}\n"
+            context += f"- Volatility: {price_analysis.get('volatility', 0):.2f}%\n"
+            context += f"- Positive Days: {price_analysis.get('positive_days', 0)}\n"
+            context += f"- Negative Days: {price_analysis.get('negative_days', 0)}\n\n"
+            
+            # Current sentiment
+            context += f"CURRENT SENTIMENT:\n"
+            context += f"- Overall Sentiment: {current_sentiment.get('overall_label', 'NEUTRAL')}\n"
+            context += f"- Sentiment Score: {current_sentiment.get('overall_score', 0.0):+.3f}\n\n"
+            
+            # Correlation insights
+            if insights:
+                context += f"CORRELATION INSIGHTS:\n"
+                for insight in insights:
+                    context += f"- {insight}\n"
+                context += "\n"
+            
+            # Recommendations
+            if recommendations:
+                context += f"TRADING RECOMMENDATIONS:\n"
+                for rec in recommendations:
+                    context += f"- {rec}\n"
+                context += "\n"
+            
+            # Limitations
+            limitations = correlation_data.get("limitations", [])
+            if limitations:
+                context += f"LIMITATIONS:\n"
+                for limit in limitations:
+                    context += f"- {limit}\n"
+            
+            context += f"\n{'='*70}\n"
+            context += f"⚠️ CRITICAL: Use this analysis to guide trading decisions, but always consider multiple factors.\n"
+            context += f"Past correlation does not guarantee future performance.\n"
+            context += f"{'='*70}\n"
+            
+            return context
+        else:
+            # Multi-symbol comparison
+            context = f"\n\n{'='*70}\n"
+            context += f"📊 COMPARATIVE SENTIMENT-PRICE ANALYSIS 📊\n"
+            context += f"Symbols: {', '.join(symbols)}\n"
+            context += f"{'='*70}\n\n"
+            
+            results = correlation_data.get("results", {})
+            comparison = correlation_data.get("comparison", {})
+            
+            for symbol in symbols:
+                if symbol in results and "error" not in results[symbol]:
+                    result = results[symbol]
+                    price_analysis = result.get("price_analysis", {})
+                    current_sentiment = result.get("current_sentiment", {})
+                    
+                    context += f"{symbol}:\n"
+                    context += f"- Trend: {price_analysis.get('trend', 'UNKNOWN')}\n"
+                    context += f"- Price Change: {price_analysis.get('total_change_pct', 0):+.2f}%\n"
+                    context += f"- Sentiment: {current_sentiment.get('overall_label', 'NEUTRAL')} ({current_sentiment.get('overall_score', 0.0):+.3f})\n"
+                    context += f"- Volatility: {price_analysis.get('volatility', 0):.2f}%\n\n"
+            
+            # Key differences
+            key_diffs = comparison.get("key_differences", [])
+            if key_diffs:
+                context += f"KEY DIFFERENCES:\n"
+                for diff in key_diffs:
+                    context += f"- {diff}\n"
+                context += "\n"
+            
+            context += f"{'='*70}\n"
+            
+            return context
+    
     async def get_response_stream(
         self,
         message: str,
@@ -724,8 +1001,14 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
         if history is None:
             history = []
         
-        # Check if this is a stock-related query and detect date
-        is_stock_query, symbol, date = self._check_for_stock_query(message)
+        # Check if this is a stock-related query and detect date/range
+        result = self._check_for_stock_query(message)
+        if len(result) == 4:
+            is_stock_query, symbol, date, date_range = result
+        else:
+            # Backward compatibility - unpack 3-tuple
+            is_stock_query, symbol, date = result
+            date_range = None
         
         # Retrieve documents using RAG
         document_context = ""

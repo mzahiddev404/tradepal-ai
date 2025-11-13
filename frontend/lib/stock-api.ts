@@ -46,6 +46,26 @@ export interface MarketOverview {
   error?: string;
 }
 
+export interface HistoricalPrice {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface HistoricalPriceRange {
+  symbol: string;
+  name?: string;
+  start_date?: string;
+  end_date?: string;
+  trading_days?: number;
+  prices?: HistoricalPrice[];
+  timestamp?: string;
+  error?: string;
+}
+
 /**
  * Get stock quote
  */
@@ -125,6 +145,48 @@ export async function getMultipleQuotes(symbols: string[]): Promise<StockQuote[]
   }
 
   return await response.json();
+}
+
+/**
+ * Get historical stock prices for a date range
+ */
+export async function getHistoricalPriceRange(
+  symbol: string,
+  days?: number,
+  startDate?: string,
+  endDate?: string
+): Promise<HistoricalPriceRange> {
+  try {
+    const url = new URL(`${API_URL}/api/stock/historical/${symbol.toUpperCase()}/range`);
+    
+    if (days !== undefined) {
+      url.searchParams.append("days", days.toString());
+    }
+    if (startDate) {
+      url.searchParams.append("start_date", startDate);
+    }
+    if (endDate) {
+      url.searchParams.append("end_date", endDate);
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Historical range API error (${response.status}):`, errorText);
+      throw new Error(`API error: ${response.status} - ${errorText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching historical price range:', error);
+    throw error;
+  }
 }
 
 
