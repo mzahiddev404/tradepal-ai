@@ -168,3 +168,48 @@ export async function getAvailableProviders(): Promise<ProviderType[]> {
   return providers;
 }
 
+/**
+ * Model with provider information
+ */
+export interface ModelInfo {
+  id: string; // Unique identifier: "provider:model"
+  provider: ProviderType;
+  model: string;
+  providerName: string;
+  cost: string;
+}
+
+/**
+ * Get all available models from all providers with API keys
+ */
+export async function getAllAvailableModels(): Promise<ModelInfo[]> {
+  const availableProviders = await getAvailableProviders();
+  const allModels: ModelInfo[] = [];
+
+  for (const provider of availableProviders) {
+    const config = PROVIDER_CONFIGS[provider];
+    for (const model of config.models) {
+      allModels.push({
+        id: `${provider}:${model}`,
+        provider,
+        model,
+        providerName: config.name,
+        cost: getModelCost(model),
+      });
+    }
+  }
+
+  return allModels;
+}
+
+/**
+ * Parse model ID to get provider and model
+ */
+export function parseModelId(modelId: string): { provider: ProviderType; model: string } {
+  const [provider, ...modelParts] = modelId.split(":");
+  return {
+    provider: provider as ProviderType,
+    model: modelParts.join(":"),
+  };
+}
+

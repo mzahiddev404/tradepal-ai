@@ -3,7 +3,7 @@
 /**
  * Model Selector Component
  * 
- * Allows users to select which LLM providers and models to compare.
+ * Allows users to select individual models from any provider to compare.
  */
 
 import { useState, useEffect } from "react";
@@ -17,51 +17,40 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Check, X } from "lucide-react";
-import { PROVIDER_CONFIGS, getAvailableProviders, getModelCost, type ProviderType } from "@/lib/llm-providers";
+import { X } from "lucide-react";
+import { getAllAvailableModels, type ModelInfo, parseModelId } from "@/lib/llm-providers";
 import { cn } from "@/lib/utils";
 
 interface ModelSelectorProps {
-  selectedProviders: ProviderType[];
-  selectedModels: Record<ProviderType, string>;
-  onProvidersChange: (providers: ProviderType[]) => void;
-  onModelsChange: (models: Record<ProviderType, string>) => void;
+  selectedModelIds: string[]; // Array of "provider:model" IDs
+  onModelsChange: (modelIds: string[]) => void;
 }
 
 export function ModelSelector({
-  selectedProviders,
-  selectedModels,
-  onProvidersChange,
+  selectedModelIds,
   onModelsChange,
 }: ModelSelectorProps) {
-  const [availableProviders, setAvailableProviders] = useState<ProviderType[]>([]);
+  const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
 
   useEffect(() => {
-    getAvailableProviders().then(setAvailableProviders);
+    getAllAvailableModels().then(setAvailableModels);
   }, []);
 
-  const toggleProvider = (provider: ProviderType) => {
-    if (selectedProviders.includes(provider)) {
-      onProvidersChange(selectedProviders.filter((p) => p !== provider));
-    } else {
-      onProvidersChange([...selectedProviders, provider]);
-      // Set default model for newly selected provider
-      const config = PROVIDER_CONFIGS[provider];
-      onModelsChange({
-        ...selectedModels,
-        [provider]: config.defaultModel,
-      });
+  const handleAddModel = (modelId: string) => {
+    if (!selectedModelIds.includes(modelId)) {
+      onModelsChange([...selectedModelIds, modelId]);
     }
   };
 
-  const handleModelChange = (provider: ProviderType, model: string) => {
-    onModelsChange({
-      ...selectedModels,
-      [provider]: model,
-    });
+  const handleRemoveModel = (modelId: string) => {
+    onModelsChange(selectedModelIds.filter((id) => id !== modelId));
   };
 
-  if (availableProviders.length === 0) {
+  const getAvailableOptions = () => {
+    return availableModels.filter((model) => !selectedModelIds.includes(model.id));
+  };
+
+  if (availableModels.length === 0) {
     return (
       <Card className="border-[#2d3237] bg-[#1a1e23]/95">
         <CardHeader>
@@ -89,88 +78,90 @@ export function ModelSelector({
         <CardTitle className="text-[#dcdcdc]">Select Models to Compare</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {availableProviders.map((provider) => {
-          const config = PROVIDER_CONFIGS[provider];
-          const isSelected = selectedProviders.includes(provider);
-          const currentModel = selectedModels[provider] || config.defaultModel;
-
-          return (
-            <div
-              key={provider}
-              className={cn(
-                "rounded-lg border p-4 transition-colors",
-                isSelected
-                  ? "border-[#34c759] bg-[#1a2e1a]/30"
-                  : "border-[#2d3237] bg-[#141820]"
-              )}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => toggleProvider(provider)}
-                    className={cn(
-                      "flex h-5 w-5 items-center justify-center rounded border transition-colors",
-                      isSelected
-                        ? "border-[#34c759] bg-[#34c759]"
-                        : "border-[#6b7280] bg-transparent"
-                    )}
+        {/* Selected Models */}
+        {selectedModelIds.length > 0 && (
+          <div className="space-y-2">
+            <Label className="text-sm text-[#9ca3af]">Selected Models</Label>
+            <div className="space-y-2">
+              {selectedModelIds.map((modelId) => {
+                const modelInfo = availableModels.find((m) => m.id === modelId);
+                if (!modelInfo) return null;
+                return (
+                  <div
+                    key={modelId}
+                    className="flex items-center justify-between rounded-lg border border-[#34c759] bg-[#1a2e1a]/30 p-3"
                   >
-                    {isSelected && <Check className="h-3 w-3 text-white" />}
-                  </button>
-                  <div>
-                    <Label className="text-[#dcdcdc] font-medium">{config.name}</Label>
-                    <p className="text-xs text-[#9ca3af]">{config.description}</p>
-                  </div>
-                </div>
-              </div>
-              {isSelected && (
-                <div className="mt-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <Label className="text-sm text-[#9ca3af]">Model</Label>
-                    <span className="text-xs text-[#9ca3af]">
-                      $ = Low • $$ = Medium • $$$ = High • $$$$ = Premium
-                    </span>
-                  </div>
-                  <Select
-                    value={currentModel}
-                    onValueChange={(value) => handleModelChange(provider, value)}
-                  >
-                    <SelectTrigger className="border-[#2d3237] bg-[#141820] text-[#dcdcdc] hover:border-[#34c759]">
-                      <div className="flex items-center justify-between w-full">
-                        <SelectValue className="text-[#dcdcdc]" />
-                        <span className="text-xs text-[#9ca3af] ml-2">{getModelCost(currentModel)}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-[#dcdcdc]">
+                          {modelInfo.providerName}
+                        </span>
+                        <span className="text-xs text-[#9ca3af]">•</span>
+                        <span className="text-sm text-[#dcdcdc]">{modelInfo.model}</span>
+                        <span className="text-xs text-[#9ca3af]">•</span>
+                        <span className="text-xs text-[#9ca3af]">{modelInfo.cost}</span>
                       </div>
-                    </SelectTrigger>
-                    <SelectContent className="border-[#2d3237] bg-[#1a1e23] text-[#dcdcdc]">
-                      {config.models.map((model) => {
-                        const cost = getModelCost(model);
-                        return (
-                          <SelectItem 
-                            key={model} 
-                            value={model}
-                            className="text-[#dcdcdc] focus:bg-[#23272c] focus:text-[#34c759] hover:bg-[#23272c] hover:text-[#34c759] cursor-pointer"
-                          >
-                            <div className="flex items-center justify-between w-full">
-                              <span>{model}</span>
-                              <span className="ml-2 text-[#9ca3af] text-xs">{cost}</span>
-                            </div>
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveModel(modelId)}
+                      className="h-6 w-6 p-0 text-[#9ca3af] hover:text-[#ff3b30]"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-        {selectedProviders.length === 0 && (
+          </div>
+        )}
+
+        {/* Add Model Dropdown */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm text-[#9ca3af]">
+              {selectedModelIds.length === 0 ? "Add Models" : "Add Another Model"}
+            </Label>
+            <span className="text-xs text-[#9ca3af]">
+              $ = Low • $$ = Medium • $$$ = High • $$$$ = Premium
+            </span>
+          </div>
+          <Select
+            value=""
+            onValueChange={handleAddModel}
+            disabled={getAvailableOptions().length === 0}
+          >
+            <SelectTrigger className="border-[#2d3237] bg-[#141820] text-[#dcdcdc] hover:border-[#34c759]">
+              <SelectValue placeholder="Select a model to add..." className="text-[#dcdcdc]" />
+            </SelectTrigger>
+            <SelectContent className="border-[#2d3237] bg-[#1a1e23] text-[#dcdcdc]">
+              {getAvailableOptions().map((model) => (
+                <SelectItem
+                  key={model.id}
+                  value={model.id}
+                  className="text-[#dcdcdc] focus:bg-[#23272c] focus:text-[#34c759] hover:bg-[#23272c] hover:text-[#34c759] cursor-pointer"
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-[#9ca3af]">{model.providerName}</span>
+                      <span className="text-xs text-[#9ca3af]">•</span>
+                      <span>{model.model}</span>
+                    </div>
+                    <span className="ml-2 text-[#9ca3af] text-xs">{model.cost}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {selectedModelIds.length === 0 && (
           <p className="text-sm text-[#9ca3af] text-center py-4">
-            Select at least one provider to compare
+            Select at least one model to compare
           </p>
         )}
       </CardContent>
     </Card>
   );
 }
-

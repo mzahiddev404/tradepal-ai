@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { ChatInput } from "./chat-input";
 import { ModelSelector } from "./model-selector";
 import { useMultiLLM } from "@/hooks/useMultiLLM";
-import { PROVIDER_CONFIGS, getModelCost, type ProviderType } from "@/lib/llm-providers";
+import { PROVIDER_CONFIGS, getModelCost, parseModelId, getAllAvailableModels, type ProviderType, type ModelInfo } from "@/lib/llm-providers";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { AlertCircle, CheckCircle, XCircle } from "lucide-react";
@@ -20,38 +20,56 @@ import { cn } from "@/lib/utils";
 import { CHAT_SUGGESTIONS } from "@/constants/chat";
 
 export function MultiLLMComparison() {
-  const [selectedProviders, setSelectedProviders] = useState<ProviderType[]>([]);
-  const [selectedModels, setSelectedModels] = useState<Record<ProviderType, string>>({} as Record<ProviderType, string>);
+  const [selectedModelIds, setSelectedModelIds] = useState<string[]>([]);
+  const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
   const [showSelector, setShowSelector] = useState(true);
-  const [expandedResponses, setExpandedResponses] = useState<Record<ProviderType, boolean>>({} as Record<ProviderType, boolean>);
+  const [expandedResponses, setExpandedResponses] = useState<Record<string, boolean>>({});
   const { responses, isLoading, sendMessage, clearResponses, error } = useMultiLLM();
 
+  useEffect(() => {
+    getAllAvailableModels().then(setAvailableModels);
+  }, []);
+
   const handleSend = (prompt: string) => {
-    if (selectedProviders.length === 0) {
+    if (selectedModelIds.length === 0) {
       return;
     }
     setShowSelector(false);
-    sendMessage(prompt, selectedProviders, selectedModels);
+    
+    // Convert model IDs to providers and models format
+    const providers: ProviderType[] = [];
+    const models: Record<ProviderType, string> = {} as Record<ProviderType, string>;
+    
+    selectedModelIds.forEach((modelId) => {
+      const { provider, model } = parseModelId(modelId);
+      if (!providers.includes(provider)) {
+        providers.push(provider);
+      }
+      models[provider] = model;
+    });
+    
+    sendMessage(prompt, providers, models, selectedModelIds);
   };
-
 
   const handleClear = () => {
     clearResponses();
     setShowSelector(true);
-    setExpandedResponses({} as Record<ProviderType, boolean>);
+    setExpandedResponses({});
   };
 
   const hasResponses = Object.values(responses).some((r) => r !== null);
-  const allResponsesCompleted = selectedProviders.every(
-    (provider) => responses[provider]?.completed || responses[provider]?.error
+  const allResponsesCompleted = selectedModelIds.every(
+    (modelId) => {
+      return responses[modelId]?.completed || responses[modelId]?.error;
+    }
   );
-  // Show suggestions when providers are selected (ready to chat) or after responses complete
-  const showSuggestions = selectedProviders.length > 0 && (!showSelector || allResponsesCompleted);
+  // Show suggestions when models are selected (ready to chat) or after responses complete
+  const showSuggestions = selectedModelIds.length > 0 && (!showSelector || allResponsesCompleted);
 
-  const toggleExpand = (provider: ProviderType) => {
+  const toggleExpand = (modelId: string) => {
     setExpandedResponses((prev) => ({
       ...prev,
-      [provider]: !prev[provider],
+      [modelId]: !prev[modelId],
     }));
   };
 
@@ -67,13 +85,11 @@ export function MultiLLMComparison() {
         <>
           <div className="p-4 border-b border-[#2d3237]">
             <ModelSelector
-              selectedProviders={selectedProviders}
-              selectedModels={selectedModels}
-              onProvidersChange={setSelectedProviders}
-              onModelsChange={setSelectedModels}
+              selectedModelIds={selectedModelIds}
+              onModelsChange={setSelectedModelIds}
             />
           </div>
-          {selectedProviders.length > 0 && (
+          {selectedModelIds.length > 0 && (
             <div className="px-4 pb-4 border-b border-[#2d3237] pt-4 space-y-3">
               <p className="text-xs font-semibold text-[#34c759] uppercase tracking-wider flex items-center gap-2">
                 <span className="h-1 w-1 rounded-full bg-[#34c759]"></span>
@@ -100,14 +116,15 @@ export function MultiLLMComparison() {
         <div className="flex-1 overflow-hidden flex flex-col">
           <ScrollArea className="flex-1 p-4">
             <div className="space-y-4">
-              {selectedProviders.map((provider) => {
-                const response = responses[provider];
-                const config = PROVIDER_CONFIGS[provider];
-                const model = selectedModels[provider] || config.defaultModel;
+              {selectedModelIds.map((modelId) => {
+                const modelInfo = availableModels.find((m) => m.id === modelId);
+                if (!modelInfo) return null;
+                
+                const response = responses[modelId];
 
                 return (
                   <Card
-                    key={provider}
+                    key={modelId}
                     className={cn(
                       "border-[#2d3237] bg-[#1a1e23]/95",
                       response?.error && "border-[#ff3b30]",
@@ -118,12 +135,12 @@ export function MultiLLMComparison() {
                       <div className="flex items-center justify-between">
                         <div>
                           <CardTitle className="text-[#dcdcdc] text-lg">
-                            {config.name}
+                            {modelInfo.providerName}
                           </CardTitle>
                           <div className="flex items-center gap-2 mt-1">
-                            <p className="text-xs text-[#9ca3af]">{model}</p>
+                            <p className="text-xs text-[#9ca3af]">{modelInfo.model}</p>
                             <span className="text-xs text-[#9ca3af]">•</span>
-                            <span className="text-xs text-[#9ca3af]">{getModelCost(model)}</span>
+                            <span className="text-xs text-[#9ca3af]">{modelInfo.cost}</span>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -164,7 +181,7 @@ export function MultiLLMComparison() {
                       {response?.content && (
                         <div className="prose prose-invert max-w-none">
                           <p className="text-[#dcdcdc] whitespace-pre-wrap leading-relaxed">
-                            {expandedResponses[provider] || response.content.length <= MAX_PREVIEW_LENGTH
+                            {expandedResponses[modelId] || response.content.length <= MAX_PREVIEW_LENGTH
                               ? response.content
                               : `${response.content.slice(0, MAX_PREVIEW_LENGTH)}...`}
                           </p>
@@ -172,10 +189,10 @@ export function MultiLLMComparison() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => toggleExpand(provider)}
+                              onClick={() => toggleExpand(modelId)}
                               className="mt-2 text-[#34c759] hover:text-[#34c759] hover:bg-[#1a2e1a]/30"
                             >
-                              {expandedResponses[provider] ? "Show Less" : "Show More"}
+                              {expandedResponses[modelId] ? "Show Less" : "Show More"}
                             </Button>
                           )}
                         </div>
@@ -235,7 +252,7 @@ export function MultiLLMComparison() {
           <div className="flex-1">
             <ChatInput
               onSend={handleSend}
-              disabled={isLoading || selectedProviders.length === 0}
+              disabled={isLoading || selectedModelIds.length === 0}
             />
           </div>
           {hasResponses && (

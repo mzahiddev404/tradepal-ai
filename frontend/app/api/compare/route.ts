@@ -10,11 +10,11 @@ const SYSTEM_PROMPT = "Be concise and direct. Get straight to the point. Use sho
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { prompt, providers, models, apiKeys } = body;
+    const { prompt, providers, models, apiKeys, modelIds } = body;
 
-    if (!prompt || !providers || !Array.isArray(providers) || providers.length === 0) {
+    if (!prompt) {
       return NextResponse.json(
-        { error: "Invalid request. Prompt and providers are required." },
+        { error: "Invalid request. Prompt is required." },
         { status: 400 }
       );
     }
@@ -26,8 +26,45 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Build model requests from modelIds if provided, otherwise use providers/models
+    interface ModelRequest {
+      modelId: string;
+      provider: ProviderType;
+      model: string;
+    }
+
+    const modelRequests: ModelRequest[] = [];
+    
+    if (modelIds && Array.isArray(modelIds) && modelIds.length > 0) {
+      // Use modelIds for individual model selection
+      modelIds.forEach((modelId: string) => {
+        const [provider, ...modelParts] = modelId.split(":");
+        const model = modelParts.join(":");
+        modelRequests.push({
+          modelId,
+          provider: provider as ProviderType,
+          model,
+        });
+      });
+    } else if (providers && Array.isArray(providers) && providers.length > 0) {
+      // Fallback to provider-based selection
+      providers.forEach((provider: ProviderType) => {
+        const model = models?.[provider] || getDefaultModel(provider);
+        modelRequests.push({
+          modelId: `${provider}:${model}`,
+          provider,
+          model,
+        });
+      });
+    } else {
+      return NextResponse.json(
+        { error: "Invalid request. Providers or modelIds are required." },
+        { status: 400 }
+      );
+    }
+
     // Make parallel API calls
-    const promises = providers.map(async (provider: ProviderType) => {
+    const promises = modelRequests.map(async ({ modelId, provider, model }) => {
       try {
         const apiKey = apiKeys[provider];
         if (!apiKey) {
@@ -72,6 +109,7 @@ export async function POST(request: NextRequest) {
         });
 
         return {
+          modelId,
           provider,
           model,
           content: result.text,
@@ -79,7 +117,6 @@ export async function POST(request: NextRequest) {
           completed: true,
         };
       } catch (error: any) {
-        const model = models?.[provider] || getDefaultModel(provider);
         let errorMessage = "Unknown error occurred";
 
         if (error instanceof Error) {
@@ -101,6 +138,7 @@ export async function POST(request: NextRequest) {
         }
 
         return {
+          modelId,
           provider,
           model,
           content: "",
