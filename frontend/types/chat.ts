@@ -20,3 +20,4 @@ export interface ChatSuggestion {
   category?: "stock" | "billing" | "technical" | "policy" | "general";
 }
 
+

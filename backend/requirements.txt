@@ -36,6 +36,9 @@ yfinance==0.2.40
 requests==2.32.3
 python-dateutil==2.9.0
 alpha_vantage==2.3.1
+pandas==2.2.3
+numpy==1.26.4
+scipy==1.13.1
 
 # PDF Generation (for mock data)
 reportlab==4.0.7

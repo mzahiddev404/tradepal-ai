@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { StockQuoteDisplay } from "@/components/stock/stock-quote";
 import { MarketOverviewDisplay } from "@/components/stock/market-overview";
+import { EventStudy } from "@/components/stock/event-study";
 import {
   getStockQuote,
   getOptionsChain,
@@ -23,6 +24,7 @@ import {
 import { Search, RefreshCw, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { AppHeader } from "@/components/layout/app-header";
 
 export default function MarketPage() {
   const [marketOverview, setMarketOverview] = useState<MarketOverview | null>(null);
@@ -169,12 +171,13 @@ export default function MarketPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#141820]">
+      <AppHeader />
       <div className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900">Market Data</h1>
-            <p className="text-sm text-slate-600 mt-1">
+            <h1 className="text-2xl sm:text-3xl font-semibold text-[#dcdcdc] uppercase tracking-tight">Market Data</h1>
+            <p className="text-sm text-[#969696] mt-1 uppercase tracking-wide">
               Real-time stock quotes and options data
             </p>
           </div>
@@ -183,21 +186,11 @@ export default function MarketPage() {
               variant="outline" 
               onClick={loadMarketData} 
               disabled={loading}
-              className="h-9 border-slate-300 text-slate-700 hover:bg-slate-50"
+              className="h-9 btn-trading border-[#373d41] text-[#dcdcdc] hover:bg-[#32363a]"
             >
               <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
               Refresh
             </Button>
-            <Link href="/disclaimer">
-              <Button variant="outline" className="h-9 border-slate-300 text-slate-700 hover:bg-slate-50">
-                Disclaimer
-              </Button>
-            </Link>
-            <Link href="/">
-              <Button variant="outline" className="h-9 border-slate-300 text-slate-700 hover:bg-slate-50">
-                Chat
-              </Button>
-            </Link>
           </div>
         </div>
 
@@ -205,19 +198,19 @@ export default function MarketPage() {
       {marketOverview && <MarketOverviewDisplay overview={marketOverview} />}
 
       {/* Search */}
-      <Card className="p-4 border-slate-200 bg-white">
+      <Card className="trading-panel p-4 border border-[#2d3237] bg-[#1a1e23]">
         <div className="flex gap-2">
           <Input
             placeholder="Search stock symbol (e.g., AAPL, MSFT)"
             value={searchSymbol}
             onChange={(e) => setSearchSymbol(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            className="border-slate-300 focus:border-slate-900 focus:ring-slate-900"
+            className="border-[#2d3237] focus:border-[#007aff] focus:ring-[#007aff]/20 bg-[#23272c] text-[#dcdcdc] placeholder:text-[#6a6a6a]"
           />
           <Button 
             onClick={handleSearch} 
             disabled={loading}
-            className="bg-slate-900 hover:bg-slate-800 text-white"
+            className="btn-trading-primary"
           >
             <Search className="h-4 w-4 mr-2" />
             Search
@@ -230,11 +223,12 @@ export default function MarketPage() {
         {spyQuote && (
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-lg font-semibold">SPY (S&P 500)</h2>
+              <h2 className="text-lg font-semibold text-[#dcdcdc] uppercase tracking-wide">SPY (S&P 500)</h2>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => loadOptions("SPY")}
+                className="btn-trading border-[#373d41] text-[#dcdcdc] hover:bg-[#32363a]"
               >
                 View Options
               </Button>
@@ -245,11 +239,12 @@ export default function MarketPage() {
         {tslaQuote && (
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-lg font-semibold">TSLA (Tesla)</h2>
+              <h2 className="text-lg font-semibold text-[#dcdcdc] uppercase tracking-wide">TSLA (Tesla)</h2>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => loadOptions("TSLA")}
+                className="btn-trading border-[#373d41] text-[#dcdcdc] hover:bg-[#32363a]"
               >
                 View Options
               </Button>
@@ -263,7 +258,7 @@ export default function MarketPage() {
       {searchResult && (
         <div>
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg font-semibold">
+            <h2 className="text-lg font-semibold text-[#dcdcdc] uppercase tracking-wide">
               {searchResult.symbol}
               {searchResult.name && ` - ${searchResult.name}`}
             </h2>
@@ -272,6 +267,7 @@ export default function MarketPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => loadOptions(searchResult.symbol)}
+                className="btn-trading border-[#373d41] text-[#dcdcdc] hover:bg-[#32363a]"
               >
                 View Options
               </Button>
@@ -283,14 +279,14 @@ export default function MarketPage() {
 
       {/* Options Chain */}
       {optionsData && selectedSymbol && !optionsData.error && (
-        <Card className="p-4 sm:p-6 border-slate-200 bg-white">
+        <Card className="trading-panel p-4 sm:p-6 border border-[#2d3237] bg-[#1a1e23]">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">
+              <h2 className="text-lg font-semibold text-[#dcdcdc] uppercase tracking-wide">
                 Options Chain: {selectedSymbol}
               </h2>
               {optionsData.current_price && optionsData.atm_strike && (
-                <p className="text-sm text-slate-600 mt-1">
+                <p className="text-sm text-[#969696] mt-1 trading-number">
                   Current: ${optionsData.current_price.toFixed(2)} | ATM: ${optionsData.atm_strike.toFixed(2)} | 
                   Showing {optionsData.unusual_count || 0} unusual options
                 </p>
@@ -299,7 +295,7 @@ export default function MarketPage() {
           </div>
 
           {/* Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4 p-4 bg-[#23272c] rounded border border-[#2d3237]">
             <div className="space-y-2">
               <Label>Expiration</Label>
               <Select
@@ -534,6 +530,14 @@ export default function MarketPage() {
             )}
           </div>
         </Card>
+      )}
+
+      {/* Event Study Analysis */}
+      {selectedSymbol && (
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold mb-4">Event Study Analysis: {selectedSymbol}</h2>
+          <EventStudy symbol={selectedSymbol} />
+        </div>
       )}
       </div>
     </div>

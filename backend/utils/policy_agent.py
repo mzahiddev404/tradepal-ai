@@ -40,40 +40,37 @@ class PolicyAgent:
         """
         return """[POLICY DOCUMENTS CONTEXT]
 
-TERMS OF SERVICE - Key Points:
-- Users must be 18+ years old
-- Account verification required for trading
-- Platform fees: 0.1% per trade (minimum $1)
-- Margin trading requires $25,000 minimum account balance
-- Day trading restrictions apply (PDT rule)
-- Users responsible for all trading decisions
-- Platform not liable for trading losses
-- Account termination possible for violations
+TRADEPAL TERMS OF SERVICE - Key Points:
+- TradePal is an EDUCATIONAL tool, NOT a trading platform
+- Users must be 18+ years old to use educational content
+- No account required - this is informational/educational only
+- TradePal does NOT execute trades or hold funds
+- Users responsible for their own trading decisions at actual brokerages
+- TradePal not liable for trading losses or decisions
 
 PRIVACY POLICY - Key Points:
-- We collect: name, email, trading data, IP address
-- Data used for: account management, compliance, analytics
-- Data shared with: payment processors, regulatory bodies (when required)
-- Data retention: 7 years for compliance
-- User rights: access, correction, deletion (subject to legal requirements)
+- We collect: usage data, queries, uploaded documents (for analysis)
+- Data used for: improving educational content, pattern analysis
+- Data shared with: AI services for processing (OpenAI, etc.)
+- Data retention: As needed for service improvement
+- User rights: access, correction, deletion
 - Security: encrypted storage, secure connections
-- Cookies: used for authentication and analytics
 
-COMPLIANCE & REGULATIONS:
-- SEC registered broker-dealer
-- FINRA member
-- SIPC insured up to $500,000
-- KYC/AML compliance required
-- Suspicious activity reporting
-- Tax reporting (1099 forms)
-- International users subject to local regulations
+SEC/FINRA REGULATIONS (Educational Information):
+- SEC/FINRA regulations apply to ALL U.S. brokerages, not TradePal
+- Pattern Day Trader (PDT) rule: SEC/FINRA regulation for accounts under $25,000
+- Margin requirements: SEC/FINRA regulation ($2,000 minimum)
+- Settlement rules: SEC regulation (T+2 for stocks, T+1 for options)
+- SIPC insurance: SEC-mandated protection up to $500,000 per account
+- KYC/AML: SEC/FINRA requirement for all brokerages
+- Tax reporting: IRS requirement (1099 forms)
 
-ACCOUNT POLICIES:
-- Minimum deposit: $100
-- Withdrawal processing: 1-3 business days
-- Account inactivity: fees after 12 months
-- Account closure: 30 days notice required
-- Dispute resolution: arbitration required
+EDUCATIONAL DISCLAIMER:
+- TradePal provides educational information only
+- Not financial advice
+- Users should consult licensed professionals for actual trading
+- Market data may be delayed or inaccurate
+- Past performance doesn't guarantee future results
 """
 
     async def get_response(
@@ -95,16 +92,18 @@ ACCOUNT POLICIES:
             history = []
         
         # Build system prompt with pre-loaded policy context (CAG)
-        system_content = f"""You are a Policy & Compliance Agent for TradePal AI, a trading platform.
+        system_content = f"""You are a Policy & Compliance Agent for TradePal AI, an educational trading information center.
+
+IMPORTANT: TradePal is NOT a trading platform. It is an educational tool. When discussing SEC/FINRA regulations, clarify these apply to all U.S. brokerages, not TradePal.
 
 Your expertise includes:
-- Terms of Service
+- TradePal's Terms of Service (educational tool)
 - Privacy Policy
-- Compliance and regulatory information
-- Account policies and rules
+- SEC/FINRA regulations (educational information)
+- Trading platform policies (general educational info)
 
-Provide accurate, clear information from the policy documents.
-Always cite specific policies when relevant.
+RESPONSE STYLE: Be concise and direct. Answer in 1-2 sentences. Cite specific policies when relevant. No fluff.
+Clarify that TradePal is educational, not a trading platform.
 
 {self.policy_context}
 
@@ -129,4 +128,5 @@ If a question is not covered in the policies, say so."""
 
 # Global policy agent instance
 policy_agent = PolicyAgent()
+
 

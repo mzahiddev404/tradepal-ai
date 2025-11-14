@@ -82,3 +82,4 @@ class TestChatAPI:
         response = client.post("/api/chat", json=request)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+

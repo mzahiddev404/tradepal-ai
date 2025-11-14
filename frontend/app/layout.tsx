@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TradePal AI - Customer Service Assistant",
-  description: "Advanced customer service AI powered by multi-agent system",
+  title: "TradePal AI - Trading Education & Pattern Analysis",
+  description: "Educational trading information center. Learn trading patterns, analyze SPY & Tesla, understand SEC/FINRA regulations",
 };
 
 export default function RootLayout({
@@ -31,7 +31,7 @@ export default function RootLayout({
       >
         <ErrorBoundary>
           <DemoBanner />
-          <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
+          <main className="min-h-screen text-[#dcdcdc]">
             {children}
           </main>
         </ErrorBoundary>

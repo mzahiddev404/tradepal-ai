@@ -46,17 +46,43 @@ class BillingAgent:
         # Cache for CAG (Context-Augmented Generation)
         self.cached_context = {}
         
-        self.base_system_prompt = """You are a Billing Support Agent for TradePal AI, a trading platform.
+        # Default knowledge base for common billing questions
+        self.default_knowledge = """[EDUCATIONAL INFORMATION - Trading Platform Fees & Billing]
+
+NOTE: TradePal is an educational tool, not a trading platform. This is general information about how brokerages handle fees.
+
+TYPICAL TRADING PLATFORM FEES (Educational):
+- Most modern brokerages: $0 commission for stock/ETF trades
+- Options contracts: Typically $0 base fee + $0.50-$0.65 per contract
+- Cryptocurrency: Usually 1-2% spread fee
+- Account maintenance: Most brokerages have no fees
+- Inactivity fees: Rare, but some brokerages charge after 12+ months inactive
+
+TYPICAL PAYMENT METHODS AT BROKERAGES:
+- Bank transfer (ACH): Free, 1-3 business days
+- Wire transfer: $20-$30 fee, same day
+- Debit card: Instant, 1.5-2% fee
+- Credit card: Usually not accepted for deposits
+
+UNDERSTANDING TRADING COSTS:
+- Commission-free doesn't mean free: Brokerages make money on spreads, payment for order flow
+- Options fees add up: $0.65 per contract × 10 contracts = $6.50 per trade
+- Margin interest: Typically 2-8% annually on borrowed funds
+- Always read brokerage fee schedules before opening account"""
+
+        self.base_system_prompt = """You are a Billing Support Agent for TradePal AI, an educational trading information center.
+
+IMPORTANT: TradePal is NOT a trading platform. It is an educational tool. If users ask about TradePal billing/pricing, explain we're educational only.
+If they ask about trading platform fees/billing, provide general educational information about how brokerages handle billing.
 
 Your expertise includes:
-- Billing and invoicing
-- Payment methods and processing
-- Pricing plans and subscriptions
-- Refunds and credits
-- Account billing history
-- Fee structures
+- General information about trading platform fees and billing (educational)
+- Payment methods at brokerages (educational)
+- Pricing structures at trading platforms (educational)
+- Understanding trading costs and fees (educational)
 
-Provide accurate, helpful information about billing-related questions.
+RESPONSE STYLE: Be concise and direct. Answer in 1-2 sentences. No fluff, no pleasantries.
+Clarify that TradePal is educational, not a trading platform. Provide educational information about how brokerages handle billing.
 If you don't know something, say so rather than guessing."""
 
     def _retrieve_billing_documents(self, query: str) -> str:
@@ -146,8 +172,17 @@ If you don't know something, say so rather than guessing."""
         
         # Build system prompt with context
         system_content = self.base_system_prompt
-        if document_context:
-            system_content += f"\n\n[BILLING DOCUMENT CONTEXT]\n{document_context}\n\n"
+        
+        # Add default knowledge if no documents found
+        if not document_context:
+            system_content += f"\n\n{self.default_knowledge}\n\n"
+            system_content += "Use the default knowledge above to answer billing questions when documents are not available."
+        else:
+            system_content += f"\n\n[BILLING DOCUMENT CONTEXT - UPLOADED FILES]\n{document_context}\n\n"
+            system_content += "CRITICAL: Parse data from documents, identify trends, and ALWAYS cite sources.\n"
+            system_content += "Format: 'According to [filename], Page [X]...' or 'Source: [filename]'\n"
+            system_content += "If document doesn't have the answer, you may reference default knowledge as fallback.\n"
+            system_content += f"\n{self.default_knowledge}\n"
             system_content += "Use the information above to answer billing questions accurately."
         
         # Format messages
@@ -175,4 +210,5 @@ If you don't know something, say so rather than guessing."""
 
 # Global billing agent instance
 billing_agent = BillingAgent()
+
 

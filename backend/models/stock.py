@@ -68,3 +68,17 @@ class HistoricalPriceRangeResponse(BaseModel):
     prices: Optional[List[Dict[str, Any]]] = None
     timestamp: Optional[str] = None
     error: Optional[str] = None
+
+
+class EventStudyResponse(BaseModel):
+    """Response model for event study analysis."""
+    symbol: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    summary: Optional[List[Dict[str, Any]]] = None
+    events: Optional[List[Dict[str, Any]]] = None
+    research_insights: Optional[Dict[str, Any]] = None
+    general_findings: Optional[List[str]] = None
+    disclaimers: Optional[List[str]] = None
+    timestamp: Optional[str] = None
+    error: Optional[str] = None

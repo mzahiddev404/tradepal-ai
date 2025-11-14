@@ -4,28 +4,28 @@
 
 export const CHAT_SUGGESTIONS = [
   {
-    text: "What's the current Tesla stock price?",
+    text: "What patterns should I watch in SPY?",
     category: "stock" as const,
   },
   {
-    text: "What was TSLA's opening price yesterday?",
+    text: "Analyze Tesla trading patterns",
     category: "stock" as const,
   },
   {
-    text: "Analyze sentiment correlation for TSLA and SPY",
+    text: "What is the PDT rule?",
     category: "stock" as const,
   },
   {
-    text: "What are your pricing plans?",
-    category: "billing" as const,
+    text: "How do I get started with trading?",
+    category: "stock" as const,
   },
   {
-    text: "How do I troubleshoot connection issues?",
-    category: "technical" as const,
+    text: "Compare SPY and TSLA sentiment",
+    category: "stock" as const,
   },
   {
-    text: "What is your privacy policy?",
-    category: "policy" as const,
+    text: "What are common trading mistakes?",
+    category: "stock" as const,
   },
 ] as const;
 
@@ -40,4 +40,5 @@ export const CHAT_CONFIG = {
   DEBOUNCE_DELAY: 300,
   AUTO_SCROLL_DELAY: 100,
 } as const;
+
 

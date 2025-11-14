@@ -43,17 +43,19 @@ class TechnicalAgent:
             except Exception as e:
                 logger.warning(f"Technical Agent: Could not initialize RAG: {e}")
         
-        self.base_system_prompt = """You are a Technical Support Agent for TradePal AI, a trading platform.
+        self.base_system_prompt = """You are a Technical Support Agent for TradePal AI, an educational trading information center.
+
+IMPORTANT: TradePal is NOT a trading platform. It is an educational tool for learning about trading patterns (especially SPY and Tesla) and understanding trading rules.
 
 Your expertise includes:
-- Technical troubleshooting and support
-- API usage and integrations
-- Platform features and functionality
-- How-to guides and tutorials
-- Bug reports and technical issues
-- Trading platform technical features
+- How to use TradePal's educational features
+- Understanding trading platform features (educational guidance)
+- How to analyze trading patterns
+- Technical questions about using TradePal's information tools
+- How-to guides for pattern analysis
 
-Provide clear, step-by-step technical guidance.
+RESPONSE STYLE: Be concise and direct. Give step-by-step instructions without fluff. Maximum 3-4 sentences unless complex troubleshooting.
+Clarify that TradePal is educational. If users ask about trading platform features, provide educational information.
 If you don't know something, say so rather than guessing."""
 
     def _retrieve_technical_documents(self, query: str) -> str:
@@ -127,7 +129,9 @@ If you don't know something, say so rather than guessing."""
         # Build system prompt with context
         system_content = self.base_system_prompt
         if document_context:
-            system_content += f"\n\n[TECHNICAL DOCUMENT CONTEXT]\n{document_context}\n\n"
+            system_content += f"\n\n[TECHNICAL DOCUMENT CONTEXT - UPLOADED FILES]\n{document_context}\n\n"
+            system_content += "CRITICAL: Parse data from documents, identify trends, and ALWAYS cite sources.\n"
+            system_content += "Format: 'According to [filename], Page [X]...' or 'Source: [filename]'\n"
             system_content += "Use the information above to provide accurate technical support."
         else:
             system_content += "\n\nNote: No relevant technical documents found. Answer based on general knowledge."
@@ -150,4 +154,5 @@ If you don't know something, say so rather than guessing."""
 
 # Global technical agent instance
 technical_agent = TechnicalAgent()
+
 

@@ -17,28 +17,34 @@ export function MessageItem({ message }: MessageItemProps) {
   return (
     <div
       className={cn(
-        "flex w-full mb-4",
+        "flex w-full mb-3",
         isUser ? "justify-end" : "justify-start"
       )}
     >
       <div
         className={cn(
-          "max-w-[85%] sm:max-w-[70%] rounded-lg px-4 py-2.5",
+          "max-w-[85%] sm:max-w-[75%] rounded-md px-4 py-3 border-l-4",
           isUser
-            ? "bg-slate-900 text-white"
+            ? "bg-gradient-to-r from-[#34c759]/20 to-[#28a745]/10 border-[#34c759] text-[#dcdcdc] shadow-md"
             : isError
-            ? "bg-red-50 border border-red-200 text-red-900"
-            : "bg-white border border-slate-200 text-slate-900 shadow-sm"
+            ? "bg-[#2d1f1f] border-[#ff3b30] text-[#ff6b6b]"
+            : "bg-[#23272c] border-[#007aff] text-[#dcdcdc] shadow-sm"
         )}
         role={isError ? "alert" : undefined}
       >
+        {!isUser && (
+          <div className="flex items-center gap-2 mb-2">
+            <div className="h-2 w-2 rounded-full bg-[#34c759]"></div>
+            <span className="text-xs font-semibold text-[#34c759] uppercase tracking-wide">TradePal AI</span>
+          </div>
+        )}
         <p className="text-sm sm:text-base whitespace-pre-wrap break-words leading-relaxed">
           {message.content}
         </p>
         <p
           className={cn(
-            "text-xs mt-1.5",
-            isUser ? "text-slate-400 text-right" : "text-slate-500 text-left"
+            "text-xs mt-2 trading-number opacity-70",
+            isUser ? "text-right text-[#969696]" : "text-left text-[#6a6a6a]"
           )}
         >
           {formatMessageTime(message.timestamp)}

@@ -36,3 +36,4 @@ class TestUploadAPI:
             data = response.json()
             assert "collection_name" in data or "error" in data
 
+

@@ -68,6 +68,37 @@ export interface HistoricalPriceRange {
   error?: string;
 }
 
+export interface EventStudySummary {
+  holiday: string;
+  window: string;
+  count: number;
+  mean: number;
+  std: number;
+  t_stat: number;
+  bootstrap_p: number;
+  n: number;
+}
+
+export interface EventStudyEvent {
+  holiday: string;
+  event_date: string;
+  window: string;
+  cum_return: number;
+}
+
+export interface EventStudyResponse {
+  symbol: string;
+  start_date?: string;
+  end_date?: string;
+  summary?: EventStudySummary[];
+  events?: EventStudyEvent[];
+  research_insights?: Record<string, any>;
+  general_findings?: string[];
+  disclaimers?: string[];
+  timestamp?: string;
+  error?: string;
+}
+
 /**
  * Get stock quote
  */
@@ -135,6 +166,30 @@ export async function getHistoricalPriceRange(
   }
 
   return apiRequest<HistoricalPriceRange>(url.pathname + url.search);
+}
+
+/**
+ * Get event study analysis for stock returns around religious holidays
+ */
+export async function getEventStudy(
+  symbol: string,
+  startDate?: string,
+  endDate?: string,
+  windows?: string
+): Promise<EventStudyResponse> {
+  const url = new URL(`${API_URL}/api/stock/event-study/${symbol.toUpperCase()}`);
+
+  if (startDate) {
+    url.searchParams.append("start_date", startDate);
+  }
+  if (endDate) {
+    url.searchParams.append("end_date", endDate);
+  }
+  if (windows) {
+    url.searchParams.append("windows", windows);
+  }
+
+  return apiRequest<EventStudyResponse>(url.pathname + url.search);
 }
 
 

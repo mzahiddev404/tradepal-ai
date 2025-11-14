@@ -1008,17 +1008,20 @@ class StockDataService:
             today = now_est.date()
             
             # Determine date range
+            requested_start_date = None  # Track the original requested start date for filtering
             if days:
                 # Use days parameter
                 # Add buffer for weekends/holidays - multiply by 1.5 to ensure we get enough trading days
                 buffer_days = max(int(days * 1.5), days + 5)  # At least 5 extra days buffer
                 end_date_obj = today
                 start_date_obj = today - timedelta(days=buffer_days)
+                requested_start_date = today - timedelta(days=days)  # Original requested start
             elif start_date and end_date:
                 # Parse provided dates
                 try:
                     start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
                     end_date_obj = datetime.strptime(end_date, "%Y-%m-%d").date()
+                    requested_start_date = start_date_obj  # Use provided start date
                 except ValueError:
                     return {
                         "symbol": symbol,
@@ -1029,6 +1032,7 @@ class StockDataService:
                 try:
                     start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
                     end_date_obj = today
+                    requested_start_date = start_date_obj  # Use provided start date
                 except ValueError:
                     return {
                         "symbol": symbol,
@@ -1039,6 +1043,7 @@ class StockDataService:
                 days = 5
                 end_date_obj = today
                 start_date_obj = today - timedelta(days=days)
+                requested_start_date = start_date_obj  # Use calculated start date
             
             # Validate dates
             if start_date_obj > end_date_obj:
@@ -1164,7 +1169,7 @@ class StockDataService:
                         date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
                 
                 # Filter to requested range (use requested_start_date if available, otherwise start_date_obj)
-                filter_start = requested_start_date if 'requested_start_date' in locals() else start_date_obj
+                filter_start = requested_start_date if requested_start_date is not None else start_date_obj
                 if filter_start <= date_obj <= end_date_obj:
                     prices.append({
                         "date": date_str,
@@ -1178,7 +1183,7 @@ class StockDataService:
             # If we still have no prices after filtering, use all available data (up to requested days)
             if not prices and not hist.empty:
                 logger.warning(f"No prices in filtered range, using all available recent data")
-                filter_start = requested_start_date if 'requested_start_date' in locals() else start_date_obj
+                filter_start = requested_start_date if requested_start_date is not None else start_date_obj
                 for date, row in hist.iterrows():
                     date_str = date.strftime("%Y-%m-%d")
                     if hasattr(date, 'date'):
@@ -1220,7 +1225,7 @@ class StockDataService:
             prices.reverse()
             
             # Use requested start date for response if available
-            response_start_date = requested_start_date.strftime("%Y-%m-%d") if 'requested_start_date' in locals() else start_date_obj.strftime("%Y-%m-%d")
+            response_start_date = requested_start_date.strftime("%Y-%m-%d") if requested_start_date is not None else start_date_obj.strftime("%Y-%m-%d")
             
             return {
                 "symbol": symbol,

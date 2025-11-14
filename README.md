@@ -16,6 +16,7 @@ TradePal AI is a production-ready customer service platform that uses specialize
 - Sentiment analysis and correlation
 - Streaming chat responses
 - PDF document upload and processing
+- **Multi-LLM Comparison**: Compare responses from multiple LLM providers side-by-side (OpenAI, Anthropic, Google Gemini, OpenRouter)
 
 ### Agent Types
 - **Orchestrator Agent**: Routes queries to specialized agents using AWS Bedrock
@@ -31,6 +32,7 @@ TradePal AI is a production-ready customer service platform that uses specialize
 - React 18 with TypeScript
 - Tailwind CSS for styling
 - shadcn/ui component library
+- AI SDK v5 for unified LLM provider integration
 
 ### Backend
 - FastAPI for REST API
@@ -50,8 +52,9 @@ TradePal AI is a production-ready customer service platform that uses specialize
 ### Prerequisites
 - Python 3.13+
 - Node.js 18+
-- OpenAI API key
+- OpenAI API key (required for backend)
 - Alpha Vantage API key (optional, falls back to yfinance)
+- **For Multi-LLM Comparison**: API keys for OpenAI, Anthropic, Google Gemini, or OpenRouter (configured in Settings)
 
 ### Backend Setup
 
@@ -143,6 +146,7 @@ tradepal-ai/
 - `GET /api/stock/historical/{symbol}/range` - Price range
 - `GET /api/stock/options/{symbol}` - Options chain
 - `GET /api/stock/market/overview` - Market overview
+- `GET /api/stock/event-study/{symbol}` - Event study analysis around religious holidays
 
 ### Document Upload
 - `POST /api/upload` - Upload PDF documents
@@ -172,6 +176,78 @@ FRONTEND_URL=http://localhost:3000
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
+
+## Multi-LLM Comparison Feature
+
+TradePal AI includes an optional multi-LLM comparison feature that allows you to compare responses from multiple LLM providers side-by-side. This feature works independently of the backend multi-agent system and runs entirely in the browser.
+
+### Setup
+
+1. **Configure API Keys**: Navigate to Settings (gear icon in the header) or visit `/settings`
+2. **Add Provider Keys**: Enter API keys for any of the supported providers:
+   - OpenAI (GPT-4, GPT-3.5)
+   - Anthropic (Claude 3.5 Sonnet, Claude 3 Opus)
+   - Google Gemini (Gemini 1.5 Pro, Gemini 1.5 Flash)
+   - OpenRouter (single key for multiple models)
+3. **Keys are Encrypted**: All API keys are encrypted using Web Crypto API and stored locally in your browser
+4. **Never Sent to Server**: API keys are only used for direct client-side API calls
+
+### Usage
+
+1. **Switch to Compare Mode**: Click the "Compare" button in the chat header
+2. **Select Providers**: Choose which LLM providers and models to compare
+3. **Send Prompt**: Enter your prompt and receive parallel responses from all selected providers
+4. **Compare Responses**: View side-by-side comparison of responses with loading states and error handling
+5. **Switch Back**: Use "Standard" mode to return to the multi-agent backend chat
+
+### Compare Mode vs Standard Mode
+
+**Compare Mode** makes direct API calls from your browser to the LLM providers. It's designed for comparing raw model responses and doesn't have access to backend features like stock data, uploaded documents, or the multi-agent routing system.
+
+**Standard Mode** uses the TradePal AI backend with full access to real-time stock data, document context from uploaded PDFs, multi-agent routing, and market sentiment analysis. Use Standard mode for trading questions, document-based queries, or when you need access to backend features.
+
+### Security
+
+- API keys are encrypted using AES-GCM encryption
+- Keys are stored in browser localStorage (encrypted)
+- Encryption keys are stored in sessionStorage (cleared on browser close)
+- Keys are never sent to TradePal AI servers
+- All API calls are made directly from your browser to the LLM providers
+
+### Supported Providers
+
+When you add an API key for a provider, you can choose from these models:
+
+**OpenAI** (default: `gpt-4-turbo-preview`)
+- `gpt-4-turbo-preview` - Latest GPT-4 Turbo model
+- `gpt-4` - Standard GPT-4
+- `gpt-3.5-turbo` - Fast and cost-effective option
+
+**Anthropic** (default: `claude-3-5-sonnet-20241022`)
+- `claude-3-5-sonnet-20241022` - Latest Claude 3.5 Sonnet
+- `claude-3-opus-20240229` - Most capable Claude model
+- `claude-3-sonnet-20240229` - Balanced performance Claude 3
+
+**Google Gemini** (default: `gemini-1.5-pro`)
+- `gemini-1.5-pro` - Most capable Gemini model
+- `gemini-1.5-flash` - Faster, lighter version
+- `gemini-pro` - Standard Gemini Pro
+
+**OpenRouter** (default: `openai/gpt-4-turbo`)
+- `openai/gpt-4-turbo` - GPT-4 Turbo via OpenRouter
+- `anthropic/claude-3-opus` - Claude 3 Opus via OpenRouter
+- `google/gemini-pro` - Gemini Pro via OpenRouter
+- `mistralai/mistral-large` - Mistral Large model
+- `x-ai/grok-beta` - Grok beta access
+
+You can select multiple providers and compare their responses side-by-side. Each provider defaults to its recommended model, but you can switch models anytime from the dropdown in the comparison interface.
+
+### Getting API Keys
+
+- **OpenAI**: https://platform.openai.com/api-keys
+- **Anthropic**: https://console.anthropic.com/settings/keys
+- **Google Gemini**: https://makersuite.google.com/app/apikey
+- **OpenRouter**: https://openrouter.ai/keys
 
 ## Development
 

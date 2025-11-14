@@ -67,6 +67,7 @@ async def root():
             "chat": "/api/chat",
             "health": "/api/health",
             "stock_quote": "/api/stock/quote/{symbol}",
+            "stock_event_study": "/api/stock/event-study/{symbol}",
             "market_overview": "/api/stock/market/overview",
             "sentiment_correlation": "/api/sentiment/correlation/{symbol}",
             "compare_sentiment": "/api/sentiment/correlation/compare"

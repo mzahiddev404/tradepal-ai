@@ -3,10 +3,13 @@ Stock market data API endpoints.
 """
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List
+from datetime import datetime
 import logging
-from models.stock import StockQuoteResponse, OptionsChainResponse, MarketOverviewResponse, HistoricalPriceResponse, HistoricalPriceRangeResponse
+from models.stock import StockQuoteResponse, OptionsChainResponse, MarketOverviewResponse, HistoricalPriceResponse, HistoricalPriceRangeResponse, EventStudyResponse
 from utils.stock_data import stock_data_service
 from utils.sentiment_analysis import sentiment_analyzer
+from utils.event_study import event_study_service
+from utils.holiday_correlations import holiday_correlations
 
 logger = logging.getLogger(__name__)
 
@@ -248,4 +251,104 @@ async def get_historical_price_range(
         raise HTTPException(
             status_code=500,
             detail=f"Error fetching historical price range: {str(e)}"
+        )
+
+
+@router.get("/event-study/{symbol}", response_model=EventStudyResponse)
+async def get_event_study(
+    symbol: str,
+    start_date: Optional[str] = Query("2017-12-01", description="Start date in YYYY-MM-DD format (default: 2017-12-01)"),
+    end_date: Optional[str] = Query(None, description="End date in YYYY-MM-DD format (defaults to today)"),
+    windows: Optional[str] = Query(None, description="Event windows as comma-separated pairs like '-5:5,-1:1,0:1'")
+):
+    """
+    Get event study analysis for stock returns around religious holidays.
+    
+    Analyzes cumulative returns around Jewish High Holidays (Rosh Hashanah, Yom Kippur)
+    and Muslim holy windows (Ramadan start/end, Eid al-Fitr, Eid al-Adha) for 2018-2025.
+    
+    Args:
+        symbol: Stock symbol (e.g., SPY, TSLA)
+        start_date: Start date in YYYY-MM-DD format (default: 2017-12-01)
+        end_date: End date in YYYY-MM-DD format (defaults to today)
+        windows: Event windows as comma-separated pairs like '-5:5,-1:1,0:1' (default: -5:5,-1:1,0:1)
+        
+    Returns:
+        EventStudyResponse with summary statistics, bootstrap p-values, and per-event returns
+    """
+    try:
+        symbol_upper = symbol.upper()
+        
+        # Parse windows if provided
+        parsed_windows = None
+        if windows:
+            try:
+                parsed_windows = []
+                for w in windows.split(','):
+                    parts = w.strip().split(':')
+                    if len(parts) == 2:
+                        parsed_windows.append((int(parts[0]), int(parts[1])))
+                    else:
+                        raise ValueError(f"Invalid window format: {w}")
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid windows format: {str(e)}. Use format like '-5:5,-1:1,0:1'"
+                )
+        
+        # Get research-based correlations
+        research_insights = {}
+        for holiday_name in event_study_service.HOLIDAYS.keys():
+            insights = holiday_correlations.format_insights(holiday_name)
+            if "error" not in insights:
+                research_insights[holiday_name] = insights
+        
+        # Try to run event study (may fail due to API issues)
+        try:
+            result = event_study_service.run_event_study(
+                ticker=symbol_upper,
+                start_date=start_date,
+                end_date=end_date,
+                windows=parsed_windows
+            )
+            
+            # Add research insights to result
+            if "error" not in result:
+                result["research_insights"] = research_insights
+                result["general_findings"] = holiday_correlations.GENERAL_FINDINGS
+                return EventStudyResponse(**result)
+            else:
+                # If event study fails, return research insights only
+                return EventStudyResponse(
+                    symbol=symbol_upper,
+                    start_date=start_date,
+                    end_date=end_date,
+                    summary=None,
+                    events=None,
+                    research_insights=research_insights,
+                    general_findings=holiday_correlations.GENERAL_FINDINGS,
+                    disclaimers=holiday_correlations.DISCLAIMERS,
+                    timestamp=datetime.now().isoformat(),
+                    error=f"Live data unavailable: {result['error']}. Showing research-based correlations instead."
+                )
+        except Exception as e:
+            # Return research insights even if event study fails
+            return EventStudyResponse(
+                symbol=symbol_upper,
+                start_date=start_date,
+                end_date=end_date,
+                summary=None,
+                events=None,
+                research_insights=research_insights,
+                general_findings=holiday_correlations.GENERAL_FINDINGS,
+                disclaimers=holiday_correlations.DISCLAIMERS,
+                timestamp=datetime.now().isoformat(),
+                error=f"Live data calculation failed: {str(e)}. Showing research-based correlations instead."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error running event study: {str(e)}"
         )
