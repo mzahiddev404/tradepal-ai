@@ -5,7 +5,8 @@ This script processes the generated mock PDFs and adds them to the vector databa
 """
 import os
 import sys
-from utils.data_ingestion import ingestion_pipeline
+# Import directly to avoid langchain_agent dependency
+from utils.data_ingestion import DataIngestionPipeline
 
 
 def ingest_all_mock_data():
@@ -22,6 +23,7 @@ def ingest_all_mock_data():
         ("billing_pricing_guide.pdf", "billing"),
         ("technical_documentation.pdf", "technical"),
         ("terms_and_privacy.pdf", "policy"),
+        ("brokerage_trading_guide.pdf", "brokerage"),
     ]
     
     print("Ingesting mock PDF documents into ChromaDB...")
@@ -40,7 +42,8 @@ def ingest_all_mock_data():
         print(f"Processing: {filename} ({doc_type})...")
         
         try:
-            result = ingestion_pipeline.ingest_pdf(
+            pipeline = DataIngestionPipeline()
+            result = pipeline.ingest_pdf(
                 pdf_path=filepath,
                 document_type=doc_type
             )
@@ -66,7 +69,8 @@ def ingest_all_mock_data():
     
     # Get collection info
     try:
-        stats = ingestion_pipeline.get_collection_stats()
+        pipeline = DataIngestionPipeline()
+        stats = pipeline.get_collection_stats()
         print("ChromaDB Collection Info:")
         print(f"  Collection: {stats['collection_name']}")
         print(f"  Total documents: {stats['document_count']}")

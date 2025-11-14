@@ -1,15 +1,28 @@
 """
-FastAPI main application entry point.
+FastAPI Application Entry Point
 
-This module initializes and configures the FastAPI application with CORS middleware
-and routes for chat, upload, and stock market functionality.
+Main application initialization and configuration.
+
+Responsibilities:
+- FastAPI app creation and configuration
+- CORS middleware setup
+- Router registration
+- Logging configuration
+
+Future Enhancements:
+- Request logging middleware
+- Rate limiting middleware
+- Authentication middleware
+- Metrics and monitoring
 """
+
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.chat import router as chat_router
 from api.upload import router as upload_router
 from api.stock import router as stock_router
+from api.sentiment_analysis import router as sentiment_router
 from core.config import settings
 
 # Configure logging
@@ -39,6 +52,7 @@ app.add_middleware(
 app.include_router(chat_router)
 app.include_router(upload_router)
 app.include_router(stock_router)
+app.include_router(sentiment_router)
 
 
 @app.get("/")
@@ -53,7 +67,10 @@ async def root():
             "chat": "/api/chat",
             "health": "/api/health",
             "stock_quote": "/api/stock/quote/{symbol}",
-            "market_overview": "/api/stock/market/overview"
+            "stock_event_study": "/api/stock/event-study/{symbol}",
+            "market_overview": "/api/stock/market/overview",
+            "sentiment_correlation": "/api/sentiment/correlation/{symbol}",
+            "compare_sentiment": "/api/sentiment/correlation/compare"
         }
     }
 

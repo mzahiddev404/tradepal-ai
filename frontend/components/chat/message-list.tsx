@@ -1,6 +1,9 @@
 "use client";
 
-import { Message } from "./chat-container";
+import { Message } from "@/types/chat";
+import { MessageItem } from "./message-item";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 interface MessageListProps {
@@ -11,11 +14,11 @@ interface MessageListProps {
 export function MessageList({ messages, isLoading }: MessageListProps) {
   if (messages.length === 0 && !isLoading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-center space-y-3 animate-in fade-in duration-500">
-          <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+      <div className="flex h-full items-center justify-center py-12">
+        <div className="text-center space-y-5 max-w-md px-4">
+          <div className="mx-auto w-20 h-20 rounded-lg bg-gradient-to-br from-[#34c759] to-[#28a745] border-2 border-[#28a745] flex items-center justify-center shadow-xl">
             <svg
-              className="w-8 h-8 text-primary"
+              className="w-10 h-10 text-white"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -23,17 +26,23 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                strokeWidth={2.5}
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
               />
             </svg>
           </div>
-          <p className="text-xl font-semibold text-foreground">
-            Start a conversation
-          </p>
-          <p className="text-sm text-muted-foreground max-w-sm">
-            Send a message to get started with TradePal AI
-          </p>
+          <div className="space-y-2">
+            <p className="text-2xl font-bold text-[#dcdcdc] uppercase tracking-tight">
+              Trading Education Center
+            </p>
+            <p className="text-sm text-[#969696] leading-relaxed">
+              Learn trading patterns, analyze SPY & Tesla, understand SEC rules, get started with trading
+            </p>
+            <div className="pt-2 flex items-center justify-center gap-2">
+              <div className="h-1.5 w-1.5 rounded-full bg-[#34c759]"></div>
+              <span className="text-xs text-[#6a6a6a] uppercase tracking-wider">SPY • TSLA • Patterns</span>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -65,25 +74,33 @@ function MessageBubble({ message }: { message: Message }) {
   return (
     <div
       className={cn(
-        "flex w-full",
+        "flex w-full mb-3",
         isUser ? "justify-end" : "justify-start"
       )}
     >
       <div
         className={cn(
-          "max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 shadow-lg transition-all",
+          "max-w-[85%] sm:max-w-[75%] rounded-md px-4 py-3 border-l-4 transition-all",
           isUser
-            ? "bg-gradient-to-br from-teal-600 via-cyan-600 to-emerald-600 text-white rounded-br-sm shadow-teal-300"
+            ? "bg-gradient-to-r from-[#34c759]/20 to-[#28a745]/10 border-[#34c759] text-[#dcdcdc] shadow-md"
             : message.error
-            ? "bg-red-100 border-2 border-red-300 text-red-800 rounded-bl-sm"
-            : "bg-white border-2 border-teal-200 text-gray-800 rounded-bl-sm"
+            ? "bg-[#2d1f1f] border-[#ff3b30] text-[#ff6b6b]"
+            : "bg-[#23272c] border-[#007aff] text-[#dcdcdc] shadow-sm"
         )}
       >
-        <p className="whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
+        {!isUser && (
+          <div className="flex items-center gap-2 mb-2">
+            <div className="h-2 w-2 rounded-full bg-[#34c759]"></div>
+            <span className="text-xs font-semibold text-[#34c759] uppercase tracking-wide">TradePal AI</span>
+          </div>
+        )}
+        <p className="whitespace-pre-wrap break-words leading-relaxed text-sm sm:text-base">
+          {message.content}
+        </p>
         <p
           className={cn(
-            "mt-2 text-xs opacity-60",
-            isUser ? "text-right" : "text-left"
+            "mt-2 text-xs trading-number opacity-70",
+            isUser ? "text-right text-[#969696]" : "text-left text-[#6a6a6a]"
           )}
         >
           {timeString}
@@ -95,12 +112,15 @@ function MessageBubble({ message }: { message: Message }) {
 
 function LoadingIndicator() {
   return (
-    <div className="flex justify-start animate-in fade-in">
-      <div className="rounded-2xl rounded-bl-sm bg-white border-2 border-teal-200 px-4 py-3 shadow-lg">
-        <div className="flex gap-1.5 items-center">
-          <div className="h-3 w-3 animate-bounce rounded-full bg-teal-600 [animation-delay:-0.3s]"></div>
-          <div className="h-3 w-3 animate-bounce rounded-full bg-cyan-600 [animation-delay:-0.15s]"></div>
-          <div className="h-3 w-3 animate-bounce rounded-full bg-emerald-600"></div>
+    <div className="flex justify-start">
+      <div className="rounded-md bg-[#23272c] border-l-4 border-[#34c759] px-4 py-3 shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1.5">
+            <div className="h-2 w-2 animate-bounce rounded-full bg-[#34c759] [animation-delay:-0.3s]"></div>
+            <div className="h-2 w-2 animate-bounce rounded-full bg-[#34c759] [animation-delay:-0.15s]"></div>
+            <div className="h-2 w-2 animate-bounce rounded-full bg-[#34c759]"></div>
+          </div>
+          <span className="text-xs text-[#6a6a6a] ml-2 uppercase tracking-wide">Analyzing...</span>
         </div>
       </div>
     </div>

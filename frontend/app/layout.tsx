@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { DemoBanner } from "@/components/demo-banner";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TradePal AI - Customer Service Assistant",
-  description: "Advanced customer service AI powered by multi-agent system",
+  title: "TradePal AI - Trading Education & Pattern Analysis",
+  description: "Educational trading information center. Learn trading patterns, analyze SPY & Tesla, understand SEC/FINRA regulations",
 };
 
 export default function RootLayout({
@@ -28,10 +29,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <div className="min-h-screen bg-gradient-to-br from-teal-50 via-cyan-50 to-emerald-50">
+        <ErrorBoundary>
           <DemoBanner />
-          {children}
-        </div>
+          <main className="min-h-screen text-[#dcdcdc]">
+            {children}
+          </main>
+        </ErrorBoundary>
       </body>
     </html>
   );

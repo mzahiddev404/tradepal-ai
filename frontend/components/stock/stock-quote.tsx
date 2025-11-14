@@ -13,8 +13,8 @@ interface StockQuoteProps {
 export function StockQuoteDisplay({ quote }: StockQuoteProps) {
   if (quote.error) {
     return (
-      <Card className="p-4">
-        <p className="text-destructive">Error: {quote.error}</p>
+      <Card className="trading-panel p-4 border border-[#ff3b30] bg-[#2d1f1f]">
+        <p className="text-[#ff6b6b]">Error: {quote.error}</p>
       </Card>
     );
   }
@@ -28,22 +28,22 @@ export function StockQuoteDisplay({ quote }: StockQuoteProps) {
     : "text-muted-foreground";
 
   return (
-    <Card className="p-6">
+    <Card className="trading-panel p-6 border border-[#2d3237] bg-[#1a1e23]">
       <div className="space-y-4">
         <div>
-          <h2 className="text-2xl font-bold">{quote.symbol}</h2>
-          {quote.name && <p className="text-sm text-muted-foreground">{quote.name}</p>}
+          <h2 className="text-2xl font-bold text-[#dcdcdc] uppercase tracking-tight">{quote.symbol}</h2>
+          {quote.name && <p className="text-sm text-[#969696]">{quote.name}</p>}
         </div>
 
         <div className="flex items-baseline gap-2">
-          <span className="text-3xl font-bold">
+          <span className="text-3xl font-bold trading-number text-[#dcdcdc]">
             ${quote.current_price?.toFixed(2) || "N/A"}
           </span>
-          <div className={cn("flex items-center gap-1", changeColor)}>
+          <div className={cn("flex items-center gap-1 font-semibold", isPositive ? "gain" : isNegative ? "loss" : "text-[#969696]")}>
             {isPositive && <TrendingUp className="h-4 w-4" />}
             {isNegative && <TrendingDown className="h-4 w-4" />}
             {!isPositive && !isNegative && <Minus className="h-4 w-4" />}
-            <span className="font-semibold">
+            <span className="trading-number">
               {quote.change && quote.change > 0 ? "+" : ""}
               {quote.change?.toFixed(2) || "0.00"} (
               {quote.change_percent && quote.change_percent > 0 ? "+" : ""}
@@ -52,26 +52,26 @@ export function StockQuoteDisplay({ quote }: StockQuoteProps) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-[#2d3237]">
           <div>
-            <p className="text-xs text-muted-foreground">Previous Close</p>
-            <p className="font-semibold">${quote.previous_close?.toFixed(2) || "N/A"}</p>
+            <p className="text-xs text-[#969696] uppercase tracking-wide">Previous Close</p>
+            <p className="font-semibold trading-number text-[#dcdcdc]">${quote.previous_close?.toFixed(2) || "N/A"}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Volume</p>
-            <p className="font-semibold">
+            <p className="text-xs text-[#969696] uppercase tracking-wide">Volume</p>
+            <p className="font-semibold trading-number text-[#dcdcdc]">
               {quote.volume
                 ? new Intl.NumberFormat().format(quote.volume)
                 : "N/A"}
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">52W High</p>
-            <p className="font-semibold">${quote.high_52w?.toFixed(2) || "N/A"}</p>
+            <p className="text-xs text-[#969696] uppercase tracking-wide">52W High</p>
+            <p className="font-semibold trading-number text-[#dcdcdc]">${quote.high_52w?.toFixed(2) || "N/A"}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">52W Low</p>
-            <p className="font-semibold">${quote.low_52w?.toFixed(2) || "N/A"}</p>
+            <p className="text-xs text-[#969696] uppercase tracking-wide">52W Low</p>
+            <p className="font-semibold trading-number text-[#dcdcdc]">${quote.low_52w?.toFixed(2) || "N/A"}</p>
           </div>
         </div>
       </div>

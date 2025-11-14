@@ -1,8 +1,10 @@
 /**
  * API client for backend communication
+ * Refactored with better error handling and separation of concerns
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { apiRequest } from "./api-client";
+import { API_URL } from "./constants";
 
 export interface ChatMessage {
   role: string;
@@ -17,6 +19,7 @@ export interface ChatRequest {
 export interface ChatResponse {
   message: string;
   status: string;
+  agent_name?: string;
 }
 
 /**
@@ -26,22 +29,14 @@ export async function sendChatMessage(
   message: string,
   history: ChatMessage[] = []
 ): Promise<string> {
-  const response = await fetch(`${API_URL}/api/chat`, {
+  const data = await apiRequest<ChatResponse>("/api/chat", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify({
       message,
       history,
     } as ChatRequest),
   });
 
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
-  }
-
-  const data: ChatResponse = await response.json();
   return data.message;
 }
 
@@ -50,8 +45,8 @@ export async function sendChatMessage(
  */
 export async function checkHealth(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_URL}/api/health`);
-    return response.ok;
+    await apiRequest("/api/health");
+    return true;
   } catch {
     return false;
   }
@@ -82,7 +77,7 @@ export async function uploadPDF(
       formData.append("document_type", documentType);
     }
 
-    // Simulate progress for better UX
+    // Show initial progress
     if (onProgress) {
       onProgress(10);
     }
@@ -92,8 +87,9 @@ export async function uploadPDF(
       body: formData,
     });
 
+    // Update progress during processing
     if (onProgress) {
-      onProgress(50);
+      onProgress(75);
     }
 
     if (!response.ok) {

@@ -8,7 +8,12 @@ pydantic-settings==2.6.1
 langchain==0.3.9
 langchain-openai==0.2.9
 langchain-community==0.3.8
+langgraph==0.2.40
 openai==1.55.3
+
+# AWS Bedrock (optional, for orchestrator)
+# Note: langchain-aws has version conflicts, using boto3 directly instead
+boto3==1.35.0
 
 # Vector Database
 chromadb==0.5.20
@@ -31,6 +36,9 @@ yfinance==0.2.40
 requests==2.32.3
 python-dateutil==2.9.0
 alpha_vantage==2.3.1
+pandas==2.2.3
+numpy==1.26.4
+scipy==1.13.1
 
 # PDF Generation (for mock data)
 reportlab==4.0.7

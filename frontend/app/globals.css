@@ -44,38 +44,34 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(0.98 0.008 180);
-  --foreground: oklch(0.15 0.01 200);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.15 0.01 200);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.15 0.01 200);
-  --primary: oklch(0.55 0.18 180);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.92 0.02 180);
-  --secondary-foreground: oklch(0.20 0.02 200);
-  --muted: oklch(0.96 0.01 180);
-  --muted-foreground: oklch(0.50 0.03 190);
-  --accent: oklch(0.65 0.15 35);
-  --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.90 0.01 180);
-  --input: oklch(0.94 0.01 180);
-  --ring: oklch(0.55 0.18 180);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.18 180);
-  --chart-3: oklch(0.50 0.15 170);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.15 0.01 200);
-  --sidebar-primary: oklch(0.55 0.18 180);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.92 0.02 180);
-  --sidebar-accent-foreground: oklch(0.20 0.02 200);
-  --sidebar-border: oklch(0.90 0.01 180);
-  --sidebar-ring: oklch(0.55 0.18 180);
+  --radius: 0.25rem;
+  /* Trading Platform Dark Theme - Fidelity/TD Ameritrade Style */
+  --background: 20 24 28; /* Dark charcoal */
+  --foreground: 220 220 220; /* Light gray text */
+  --card: 26 30 35; /* Slightly lighter dark */
+  --card-foreground: 220 220 220;
+  --popover: 26 30 35;
+  --popover-foreground: 220 220 220;
+  --primary: 0 122 255; /* Professional blue */
+  --primary-foreground: 255 255 255;
+  --secondary: 40 44 50;
+  --secondary-foreground: 200 200 200;
+  --muted: 35 39 44;
+  --muted-foreground: 150 150 150;
+  --accent: 0 122 255;
+  --accent-foreground: 255 255 255;
+  --destructive: 255 59 48; /* Red for losses */
+  --border: 45 50 55;
+  --input: 35 39 44;
+  --ring: 0 122 255;
+  /* Trading colors */
+  --gain: 52 199 89; /* Green for gains */
+  --loss: 255 59 48; /* Red for losses */
+  --chart-1: 0 122 255; /* Blue */
+  --chart-2: 52 199 89; /* Green */
+  --chart-3: 255 59 48; /* Red */
+  --chart-4: 255 149 0; /* Orange */
+  --chart-5: 175 82 222; /* Purple */
 }
 
 .dark {
@@ -118,6 +114,54 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  }
+  
+  /* Trading platform monospace for numbers */
+  .trading-number {
+    font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+  
+  /* Gain/Loss colors */
+  .gain {
+    color: rgb(52 199 89);
+  }
+  
+  .loss {
+    color: rgb(255 59 48);
+  }
+  
+  /* Trading terminal style borders */
+  .trading-border {
+    border: 1px solid rgb(45 50 55);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+  
+  /* Professional data table styling */
+  .trading-table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  
+  .trading-table th {
+    background: rgb(35 39 44);
+    border-bottom: 2px solid rgb(45 50 55);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    padding: 0.75rem;
+  }
+  
+  .trading-table td {
+    border-bottom: 1px solid rgb(35 39 44);
+    padding: 0.75rem;
+  }
+  
+  .trading-table tr:hover {
+    background: rgb(35 39 44);
   }
 }
 
@@ -182,17 +226,49 @@
     will-change: transform;
   }
   
-  /* Modern glassmorphism effect */
-  .glass {
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+  /* Trading platform panel effect */
+  .trading-panel {
+    background: rgb(26 30 35);
+    border: 1px solid rgb(45 50 55);
+    box-shadow: 
+      0 2px 4px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
   
-  .dark .glass {
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+  .trading-panel-header {
+    background: linear-gradient(to bottom, rgb(35 39 44), rgb(26 30 35));
+    border-bottom: 1px solid rgb(45 50 55);
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+  }
+  
+  /* Button styles - trading platform */
+  .btn-trading {
+    background: rgb(40 44 50);
+    border: 1px solid rgb(55 60 65);
+    color: rgb(220 220 220);
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+  
+  .btn-trading:hover {
+    background: rgb(50 54 60);
+    border-color: rgb(65 70 75);
+  }
+  
+  .btn-trading-primary {
+    background: rgb(0 122 255);
+    border: 1px solid rgb(0 122 255);
+    color: white;
+  }
+  
+  .btn-trading-primary:hover {
+    background: rgb(0 100 220);
+    border-color: rgb(0 100 220);
   }
   
   /* Enhanced shadows for depth */
