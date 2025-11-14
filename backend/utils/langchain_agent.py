@@ -60,7 +60,14 @@ class ChatAgent:
         current_time = current_datetime.strftime("%I:%M %p %Z")
         
         # System prompt for the trading assistant - EXTREMELY EXPLICIT
-        self.base_system_prompt = f"""You are TradePal AI - a DATA-DRIVEN trading assistant.
+        self.base_system_prompt = f"""You are TradePal AI - an EDUCATIONAL trading information center and pattern analysis tool.
+
+IMPORTANT: TradePal is NOT a trading platform or brokerage. It is an educational/informational tool that helps users:
+- Learn about trading and market patterns
+- Analyze trading patterns, especially for SPY and Tesla (TSLA)
+- Understand SEC/FINRA regulations and trading rules
+- Get started with trading education
+- Analyze market sentiment and correlations
 
 TODAY IS: {current_date} at {current_time}
 
@@ -72,6 +79,14 @@ TODAY IS: {current_date} at {current_time}
 4. EVERY response MUST include the timestamp from the data
 5. DO NOT HALLUCINATE - ONLY STATE FACTS FROM THE PROVIDED DATA
 
+⚠️ RESPONSE STYLE - BE CONCISE, NO FLUFF ⚠️
+- Give direct, to-the-point answers
+- No unnecessary explanations or filler words
+- No "I hope this helps" or "Let me know if you need more"
+- Answer the question directly, then stop
+- Maximum 2-3 sentences unless complex analysis is needed
+- Skip pleasantries and get straight to the facts
+
 STOCK PRICES:
 - When you see [LIVE MARKET DATA] with a price, USE THAT EXACT PRICE
 - DO NOT adjust, round, or change the price
@@ -79,15 +94,50 @@ STOCK PRICES:
 - The data I provide is from TODAY: {current_date}
 - Example: If data says $434.47, you say "$434.47" - NOT "$1,000" or any other number
 
-DOCUMENT CONTEXT (RAG):
-- When [DOCUMENT CONTEXT] is provided, use it to answer questions about:
+DOCUMENT CONTEXT (RAG) - CRITICAL:
+- When [DOCUMENT CONTEXT] is provided, you MUST:
+  * Parse and analyze data from uploaded documents
+  * Identify trends, patterns, and key insights from document data
+  * Base your answer primarily on document content
+  * ALWAYS cite the source: "According to [Source: filename.pdf, Page X]..."
+  * Extract numerical data, dates, and specific facts from documents
+  * Suggest actions based on document content when relevant
+- Document types include:
   * Brokerage information: Trading fees, day trading rules (PDT), margin requirements, settlement periods
   * Billing and pricing: Subscription plans, payment methods, overage charges
   * Technical documentation: API usage, troubleshooting, features
   * Policies: Terms of service, privacy policy, compliance
-- Cite specific information from documents when relevant
+  * Market analysis: Trends, historical data, research findings
+  * Options flow data: PUT/CALL ratios, unusual activity, premium flow, open interest
+- CRITICAL FOR OPTIONS FLOW DATA:
+  * If document shows heavy PUT buying/activity → BEARISH signal (suggests PUTS) even if sentiment seems positive
+  * If document shows heavy CALL buying/activity → BULLISH signal (suggests CALLS) even if sentiment seems negative
+  * PUT/CALL ratio > 1.0 → More puts than calls = BEARISH (favor PUTS)
+  * PUT/CALL ratio < 0.7 → More calls than puts = BULLISH (favor CALLS)
+  * Unusual PUT activity → Smart money may be hedging or betting on downside (consider PUTS)
+  * Unusual CALL activity → Smart money may be betting on upside (consider CALLS)
+  * High premium flow to PUTS → Institutional bearish positioning (PUTS favored)
+  * High premium flow to CALLS → Institutional bullish positioning (CALLS favored)
+  * ALWAYS prioritize actual trading activity (options flow) over sentiment when they conflict
+  * Example: If sentiment is "slightly positive" but document shows heavy PUT buying → Recommend PUTS, not CALLS
 - If document context contradicts stock data, prioritize stock data for price-related queries
-- For brokerage questions (fees, PDT rule, margin, etc.), use document context as primary source
+- For all other questions, use document context as primary source
+- When analyzing trends from documents, identify patterns and cite specific document sources
+
+TRADING EDUCATION KNOWLEDGE (Fallback):
+- TradePal is an EDUCATIONAL tool, not a trading platform. Focus on teaching and explaining trading concepts.
+- If no documents available, provide educational information about:
+  * Trading basics (order types, trading hours, how trading works)
+  * SEC/FINRA regulations (PDT rule, margin requirements, settlement rules)
+  * Trading patterns and analysis (especially SPY and Tesla patterns)
+  * Market sentiment and correlation analysis
+  * Options trading education
+  * Getting started with trading (educational guidance)
+  * Common trading mistakes and how to avoid them
+- IMPORTANT: Always clarify that regulations (PDT rule, margin requirements, etc.) are SEC/FINRA federal regulations that apply to all U.S. brokerages
+- Focus on SPY and Tesla (TSLA) pattern analysis when relevant
+- Provide educational guidance to help users understand trading concepts
+- Be concise and direct - 1-2 sentences unless complex explanation needed
 
 MARKET SENTIMENT (CRITICAL - ALWAYS INCLUDE):
 - When sentiment data is provided, you MUST include ALL sentiment details in your response
@@ -102,8 +152,12 @@ MARKET SENTIMENT (CRITICAL - ALWAYS INCLUDE):
 
 RESPONSE FORMAT:
 - For stock queries: "As of [DATE] at [TIME]: [SYMBOL] is $[EXACT_PRICE_FROM_DATA]. [Sentiment data]"
-- For document queries: Use information from [DOCUMENT CONTEXT] and cite sources
-- For general questions: Combine available context appropriately
+- For document queries: 
+  * Start with the answer based on document content
+  * ALWAYS end with: "Source: [filename.pdf, Page X]" or "According to [filename.pdf]..."
+  * If analyzing trends: "Based on [filename.pdf], the trend shows... Source: [filename.pdf, Page X]"
+  * If suggesting actions: "Based on [filename.pdf], I recommend... Source: [filename.pdf]"
+- For general questions: Combine available context appropriately, cite sources when using documents
 
 BANNED PHRASES:
 - "As of my last update"
@@ -119,6 +173,70 @@ BANNED PHRASES:
 CRITICAL: If [LIVE MARKET DATA] or [HISTORICAL MARKET DATA] sections are provided, you MUST use that data. Never say you don't have access when data is provided.
 
 BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
+    
+    def _extract_date_from_filename(self, filename: str) -> Optional[str]:
+        """
+        Extract date from filename (e.g., timestamp in filename).
+        
+        Args:
+            filename: PDF filename
+            
+        Returns:
+            Date string or None
+        """
+        # re and datetime are already imported at the top of the file
+        
+        # Try to extract Unix timestamp from filename (e.g., 1762971684425)
+        timestamp_match = re.search(r'(\d{13})', filename)
+        if timestamp_match:
+            try:
+                timestamp_ms = int(timestamp_match.group(1))
+                timestamp_s = timestamp_ms / 1000
+                dt = datetime.fromtimestamp(timestamp_s)
+                return dt.strftime("%Y-%m-%d %H:%M:%S")
+            except:
+                pass
+        
+        # Try to extract date patterns (YYYY-MM-DD, MM-DD-YYYY, etc.)
+        date_patterns = [
+            r'(\d{4}-\d{2}-\d{2})',
+            r'(\d{2}-\d{2}-\d{4})',
+            r'(\d{4}_\d{2}_\d{2})',
+        ]
+        for pattern in date_patterns:
+            match = re.search(pattern, filename)
+            if match:
+                return match.group(1)
+        
+        return None
+    
+    def _detect_stock_symbols_in_content(self, content: str) -> List[str]:
+        """
+        Detect stock symbols mentioned in document content.
+        
+        Args:
+            content: Document content text
+            
+        Returns:
+            List of detected stock symbols
+        """
+        # re is already imported at the top of the file
+        
+        # Common stock symbols pattern
+        symbols = []
+        content_upper = content.upper()
+        
+        # Look for common patterns: TSLA, SPY, AAPL, etc.
+        symbol_pattern = r'\b([A-Z]{2,5})\b'
+        potential_symbols = re.findall(symbol_pattern, content_upper)
+        
+        # Filter for known stock symbols (common ones)
+        known_symbols = ['TSLA', 'SPY', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'NFLX', 'AMD', 'QQQ', 'DIA', 'IWM']
+        for symbol in potential_symbols:
+            if symbol in known_symbols and symbol not in symbols:
+                symbols.append(symbol)
+        
+        return symbols
     
     def _retrieve_documents(self, query: str) -> str:
         """
@@ -140,18 +258,56 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
             if not docs:
                 return ""
             
-            # Format documents for context
+            # Get current date for comparison
+            # datetime, timedelta, and ZoneInfo are already imported at the top of the file
+            est_tz = ZoneInfo("America/New_York")
+            current_datetime = datetime.now(est_tz)
+            current_date_str = current_datetime.strftime("%Y-%m-%d")
+            
+            # Format documents for context with enhanced metadata
             context_parts = []
+            detected_symbols = set()
+            
             for i, doc in enumerate(docs, 1):
                 source = doc.metadata.get('source_file', 'Unknown')
                 page = doc.metadata.get('page', 'N/A')
                 doc_type = doc.metadata.get('document_type', 'general')
+                content = doc.page_content
+                
+                # Extract date from filename
+                doc_date = self._extract_date_from_filename(source)
+                
+                # Detect stock symbols in content
+                symbols = self._detect_stock_symbols_in_content(content)
+                detected_symbols.update(symbols)
                 
                 context_parts.append(
                     f"[Document {i} - {doc_type}]\n"
-                    f"Source: {source} (Page {page})\n"
-                    f"Content: {doc.page_content}\n"
+                    f"Source File: {source}\n"
+                    f"Page: {page}\n"
                 )
+                
+                if doc_date:
+                    context_parts.append(f"Document Date: {doc_date}\n")
+                    # Calculate age of document
+                    try:
+                        doc_dt = datetime.strptime(doc_date.split()[0], "%Y-%m-%d")
+                        days_old = (current_datetime.date() - doc_dt.date()).days
+                        context_parts.append(f"⚠️ WARNING: This document is {days_old} days old. Market data may be outdated.\n")
+                    except:
+                        pass
+                
+                context_parts.append(f"Content: {content}\n")
+                context_parts.append(f"IMPORTANT: When using this information, you MUST cite: 'Source: {source}, Page {page}'\n")
+            
+            # If stock symbols detected, fetch current prices for comparison
+            if detected_symbols:
+                context_parts.append(f"\n[DETECTED STOCK SYMBOLS IN DOCUMENTS: {', '.join(sorted(detected_symbols))}]\n")
+                context_parts.append("⚠️ CRITICAL: The document contains stock/options data. You MUST:\n")
+                context_parts.append("1. Fetch CURRENT market prices for these symbols\n")
+                context_parts.append("2. Compare document data with current prices\n")
+                context_parts.append("3. Warn the user if prices have changed significantly since document date\n")
+                context_parts.append("4. Provide current market context alongside document analysis\n")
             
             return "\n".join(context_parts)
         except Exception as e:
@@ -162,8 +318,29 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
         """Convert history dict to LangChain message format."""
         # Build system prompt with document context if available
         system_content = self.base_system_prompt
+        
+        # Add document context instructions if documents are available
         if document_context:
-            system_content += f"\n\n[DOCUMENT CONTEXT]\n{document_context}"
+            system_content += f"\n\n[DOCUMENT CONTEXT - UPLOADED FILES]\n{document_context}\n\n"
+            system_content += "CRITICAL INSTRUCTIONS FOR USING DOCUMENTS:\n"
+            system_content += "1. Parse and extract data from the document content above\n"
+            system_content += "2. Identify trends, patterns, and numerical data from documents\n"
+            system_content += "3. Base your answer on the document content\n"
+            system_content += "4. ALWAYS cite the source file and page number in your response\n"
+            system_content += "5. Format citations as: 'Source: [filename], Page [X]' or 'According to [filename]...'\n"
+            system_content += "6. If suggesting actions based on document trends, cite the source\n"
+            system_content += "7. Extract specific numbers, dates, and facts from documents\n"
+            system_content += "8. When analyzing trends, reference the document: 'Based on [filename], the trend shows...'\n"
+        else:
+            # Add trading knowledge base as fallback for common questions
+            try:
+                from utils.trading_knowledge import get_trading_knowledge
+                trading_knowledge = get_trading_knowledge()
+                if trading_knowledge:
+                    system_content += f"\n\n[TRADING PLATFORM KNOWLEDGE BASE - Use when documents not available]\n{trading_knowledge}\n\n"
+                    system_content += "Use this knowledge base to answer common trading platform questions when documents are not available.\n"
+            except ImportError:
+                pass
         
         messages = [SystemMessage(content=system_content)]
         
@@ -639,22 +816,203 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
                             news_sentiment = sentiment_data.get('news_sentiment')
                             reddit_sentiment = sentiment_data.get('reddit_sentiment')
                             
-                            # Determine investment guidance
-                            if overall_score >= 0.5:
-                                investment_guidance = "STRONG BULLISH - Consider CALL options or LONG positions"
-                                call_put_recommendation = "CALL"
+                            # Enhanced correlation analysis for short-term trading (hours to days)
+                            # Analyze price momentum, volume, sentiment alignment, and options flow data
+                            current_price = stock_data.get('current_price', 0)
+                            change = stock_data.get('change', 0)
+                            change_pct = stock_data.get('change_percent', 0)
+                            volume = stock_data.get('volume', 0)
+                            
+                            # Determine time horizon and signal strength
+                            time_horizon = ""
+                            signal_strength = ""
+                            
+                            # Parse options flow data from document context if available
+                            options_flow_bearish = False
+                            options_flow_bullish = False
+                            put_call_ratio = None
+                            unusual_put_activity = False
+                            unusual_call_activity = False
+                            
+                            # Check document context for options flow signals
+                            if document_context:
+                                # re is already imported at the top of the file
+                                doc_upper = document_context.upper()
+                                
+                                # Look for PUT/CALL ratio indicators
+                                put_call_match = re.search(r'PUT[:\s/]+CALL[:\s]+(\d+\.?\d*)', doc_upper)
+                                if put_call_match:
+                                    put_call_ratio = float(put_call_match.group(1))
+                                    if put_call_ratio > 1.0:
+                                        options_flow_bearish = True
+                                    elif put_call_ratio < 0.7:
+                                        options_flow_bullish = True
+                                
+                                # Look for heavy PUT activity indicators
+                                put_indicators = [
+                                    r'HEAVY PUT', r'LARGE PUT', r'UNUSUAL PUT', r'PUT BUYING', 
+                                    r'PUT PREMIUM', r'PUT FLOW', r'PUT ACTIVITY', r'MORE PUTS',
+                                    r'PUT[:\s]+(\d+[KMB]?)', r'PUTS[:\s]+(\d+[KMB]?)'
+                                ]
+                                for pattern in put_indicators:
+                                    if re.search(pattern, doc_upper):
+                                        options_flow_bearish = True
+                                        unusual_put_activity = True
+                                        break
+                                
+                                # Look for heavy CALL activity indicators
+                                call_indicators = [
+                                    r'HEAVY CALL', r'LARGE CALL', r'UNUSUAL CALL', r'CALL BUYING',
+                                    r'CALL PREMIUM', r'CALL FLOW', r'CALL ACTIVITY', r'MORE CALLS',
+                                    r'CALL[:\s]+(\d+[KMB]?)', r'CALLS[:\s]+(\d+[KMB]?)'
+                                ]
+                                for pattern in call_indicators:
+                                    if re.search(pattern, doc_upper):
+                                        options_flow_bullish = True
+                                        unusual_call_activity = True
+                                        break
+                                
+                                # Look for bearish price action in documents
+                                bearish_price_indicators = [
+                                    r'DROPP?ED', r'DECLINED?', r'FALLING', r'DOWNWARD', r'BEARISH',
+                                    r'SELL[ING]?', r'SHORT', r'RESISTANCE', r'BREAKDOWN'
+                                ]
+                                for pattern in bearish_price_indicators:
+                                    if re.search(pattern, doc_upper):
+                                        options_flow_bearish = True
+                                        break
+                            
+                            # Analyze correlation patterns
+                            # Strong bullish signals (CALLS):
+                            # 1. Positive sentiment + price rising + high volume = strong call signal
+                            # 2. News bullish + Reddit bullish + price momentum = high confidence call
+                            # 3. Options flow shows heavy CALL buying = bullish (prioritize over sentiment)
+                            # 4. Divergence: negative price but strong positive sentiment = potential reversal call
+                            
+                            # Strong bearish signals (PUTS):
+                            # 1. Negative sentiment + price falling + high volume = strong put signal
+                            # 2. News bearish + Reddit bearish + price momentum down = high confidence put
+                            # 3. Options flow shows heavy PUT buying = bearish (prioritize over sentiment) ⚠️ CRITICAL
+                            # 4. Divergence: positive price but strong negative sentiment = potential reversal put
+                            
+                            news_score = news_sentiment.get('sentiment_score', 0) if news_sentiment else 0
+                            reddit_score = reddit_sentiment.get('sentiment_score', 0) if reddit_sentiment else 0
+                            
+                            # Check for alignment (sentiment and price moving together)
+                            sentiment_price_aligned = False
+                            if (overall_score > 0.2 and change > 0) or (overall_score < -0.2 and change < 0):
+                                sentiment_price_aligned = True
+                            
+                            # Check for divergence (sentiment contradicts price - potential reversal)
+                            sentiment_price_divergence = False
+                            if (overall_score > 0.3 and change < -1) or (overall_score < -0.3 and change > 1):
+                                sentiment_price_divergence = True
+                            
+                            # CRITICAL: Check for options flow vs sentiment divergence
+                            # If options flow is bearish (PUT buying) but sentiment is positive → Favor PUTS
+                            options_flow_sentiment_divergence = False
+                            if options_flow_bearish and overall_score > 0.1:
+                                options_flow_sentiment_divergence = True
+                            elif options_flow_bullish and overall_score < -0.1:
+                                options_flow_sentiment_divergence = True
+                            
+                            # Determine recommendation with time horizon
+                            # PRIORITY: Options flow data > Price action > Sentiment
+                            
+                            # CRITICAL: If options flow shows bearish activity (PUT buying), favor PUTS even if sentiment is positive
+                            if options_flow_bearish or unusual_put_activity:
+                                if put_call_ratio and put_call_ratio > 1.2:
+                                    investment_guidance = f"STRONG BEARISH SIGNAL - PUT options recommended (1-3 day timeframe). Options flow shows heavy PUT buying (PUT/CALL ratio: {put_call_ratio:.2f}) despite sentiment. Smart money positioning suggests downside risk."
+                                    call_put_recommendation = "PUT"
+                                    time_horizon = "1-3 days"
+                                    signal_strength = "STRONG"
+                                elif change_pct < -1:
+                                    investment_guidance = "BEARISH - PUT options recommended (1-2 day timeframe). Options flow shows PUT buying activity + price decline = bearish signal."
+                                    call_put_recommendation = "PUT"
+                                    time_horizon = "1-2 days"
+                                    signal_strength = "MODERATE"
+                                else:
+                                    investment_guidance = "BEARISH SIGNAL - PUT options (6-24 hour timeframe). Options flow shows PUT buying activity. Monitor price action for entry."
+                                    call_put_recommendation = "PUT"
+                                    time_horizon = "6-24 hours"
+                                    signal_strength = "MODERATE"
+                            # If options flow shows bullish activity (CALL buying), favor CALLS even if sentiment is negative
+                            elif options_flow_bullish or unusual_call_activity:
+                                if put_call_ratio and put_call_ratio < 0.6:
+                                    investment_guidance = f"STRONG BULLISH SIGNAL - CALL options recommended (1-3 day timeframe). Options flow shows heavy CALL buying (PUT/CALL ratio: {put_call_ratio:.2f}) despite sentiment. Smart money positioning suggests upside potential."
+                                    call_put_recommendation = "CALL"
+                                    time_horizon = "1-3 days"
+                                    signal_strength = "STRONG"
+                                elif change_pct > 1:
+                                    investment_guidance = "BULLISH - CALL options recommended (1-2 day timeframe). Options flow shows CALL buying activity + price rise = bullish signal."
+                                    call_put_recommendation = "CALL"
+                                    time_horizon = "1-2 days"
+                                    signal_strength = "MODERATE"
+                                else:
+                                    investment_guidance = "BULLISH SIGNAL - CALL options (6-24 hour timeframe). Options flow shows CALL buying activity. Monitor price action for entry."
+                                    call_put_recommendation = "CALL"
+                                    time_horizon = "6-24 hours"
+                                    signal_strength = "MODERATE"
+                            # Fall back to sentiment-based analysis if no options flow data
+                            elif overall_score >= 0.5:
+                                if sentiment_price_aligned and change_pct > 2:
+                                    investment_guidance = "STRONG BULLISH - CALL options recommended (1-3 day timeframe). Strong sentiment + price momentum + alignment = high confidence entry."
+                                    call_put_recommendation = "CALL"
+                                    time_horizon = "1-3 days"
+                                    signal_strength = "STRONG"
+                                elif sentiment_price_divergence:
+                                    investment_guidance = "BULLISH DIVERGENCE - CALL options on pullback (4-12 hour timeframe). Strong positive sentiment despite price drop suggests potential reversal."
+                                    call_put_recommendation = "CALL"
+                                    time_horizon = "4-12 hours"
+                                    signal_strength = "MODERATE"
+                                else:
+                                    investment_guidance = "BULLISH - CALL options (1-2 day timeframe). Strong positive sentiment suggests upward momentum."
+                                    call_put_recommendation = "CALL"
+                                    time_horizon = "1-2 days"
+                                    signal_strength = "MODERATE"
                             elif overall_score >= 0.2:
-                                investment_guidance = "BULLISH - Consider CALL options or LONG positions"
-                                call_put_recommendation = "CALL"
+                                if sentiment_price_aligned and change_pct > 1:
+                                    investment_guidance = "BULLISH - CALL options (6-24 hour timeframe). Moderate sentiment + price momentum = favorable entry."
+                                    call_put_recommendation = "CALL"
+                                    time_horizon = "6-24 hours"
+                                    signal_strength = "MODERATE"
+                                else:
+                                    investment_guidance = "SLIGHTLY BULLISH - Consider CALL options (12-48 hour timeframe). Monitor for stronger signals."
+                                    call_put_recommendation = "CALL"
+                                    time_horizon = "12-48 hours"
+                                    signal_strength = "WEAK"
                             elif overall_score <= -0.5:
-                                investment_guidance = "STRONG BEARISH - Consider PUT options or SHORT positions"
-                                call_put_recommendation = "PUT"
+                                if sentiment_price_aligned and change_pct < -2:
+                                    investment_guidance = "STRONG BEARISH - PUT options recommended (1-3 day timeframe). Strong negative sentiment + price decline + alignment = high confidence entry."
+                                    call_put_recommendation = "PUT"
+                                    time_horizon = "1-3 days"
+                                    signal_strength = "STRONG"
+                                elif sentiment_price_divergence:
+                                    investment_guidance = "BEARISH DIVERGENCE - PUT options on bounce (4-12 hour timeframe). Strong negative sentiment despite price rise suggests potential reversal."
+                                    call_put_recommendation = "PUT"
+                                    time_horizon = "4-12 hours"
+                                    signal_strength = "MODERATE"
+                                else:
+                                    investment_guidance = "BEARISH - PUT options (1-2 day timeframe). Strong negative sentiment suggests downward momentum."
+                                    call_put_recommendation = "PUT"
+                                    time_horizon = "1-2 days"
+                                    signal_strength = "MODERATE"
                             elif overall_score <= -0.2:
-                                investment_guidance = "BEARISH - Consider PUT options or SHORT positions"
-                                call_put_recommendation = "PUT"
+                                if sentiment_price_aligned and change_pct < -1:
+                                    investment_guidance = "BEARISH - PUT options (6-24 hour timeframe). Moderate negative sentiment + price decline = favorable entry."
+                                    call_put_recommendation = "PUT"
+                                    time_horizon = "6-24 hours"
+                                    signal_strength = "MODERATE"
+                                else:
+                                    investment_guidance = "SLIGHTLY BEARISH - Consider PUT options (12-48 hour timeframe). Monitor for stronger signals."
+                                    call_put_recommendation = "PUT"
+                                    time_horizon = "12-48 hours"
+                                    signal_strength = "WEAK"
                             else:
-                                investment_guidance = "NEUTRAL - Wait for clearer signals before taking positions"
+                                investment_guidance = "NEUTRAL - Wait for clearer signals (no position recommended). Monitor for sentiment/price alignment or options flow data."
                                 call_put_recommendation = "NEUTRAL"
+                                time_horizon = "N/A"
+                                signal_strength = "NONE"
                             
                             stock_context += f"\n{'═'*70}\n"
                             stock_context += f"📊 MARKET SENTIMENT ANALYSIS 📊\n"
@@ -692,11 +1050,46 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
                                 stock_context += f"   Source: Retail investor sentiment from Reddit\n\n"
                             
                             stock_context += f"{'─'*70}\n"
-                            stock_context += f"💡 INVESTMENT GUIDANCE:\n"
+                            stock_context += f"💡 SHORT-TERM TRADING GUIDANCE (Hours to Days):\n"
                             stock_context += f"{'─'*70}\n"
                             stock_context += f"Recommendation: {investment_guidance}\n"
                             stock_context += f"Call/Put Side: {call_put_recommendation}\n"
+                            if time_horizon:
+                                stock_context += f"Time Horizon: {time_horizon}\n"
+                            if signal_strength:
+                                stock_context += f"Signal Strength: {signal_strength}\n"
+                            
+                            # Add correlation analysis details
+                            if sentiment_price_aligned:
+                                stock_context += f"\n✅ ALIGNMENT DETECTED: Sentiment and price moving together - Higher confidence signal\n"
+                            if sentiment_price_divergence:
+                                stock_context += f"\n⚠️ DIVERGENCE DETECTED: Sentiment contradicts price - Potential reversal signal\n"
+                            
+                            # Add options flow analysis details
+                            if options_flow_bearish or unusual_put_activity:
+                                stock_context += f"\n🔴 OPTIONS FLOW BEARISH: Document shows PUT buying activity - This is a BEARISH signal (favor PUTS)\n"
+                                if put_call_ratio:
+                                    stock_context += f"   PUT/CALL Ratio: {put_call_ratio:.2f} (Ratio > 1.0 = More puts than calls = Bearish)\n"
+                                stock_context += f"   ⚠️ CRITICAL: Options flow data suggests PUTS even if sentiment seems positive\n"
+                            if options_flow_bullish or unusual_call_activity:
+                                stock_context += f"\n🟢 OPTIONS FLOW BULLISH: Document shows CALL buying activity - This is a BULLISH signal (favor CALLS)\n"
+                                if put_call_ratio:
+                                    stock_context += f"   PUT/CALL Ratio: {put_call_ratio:.2f} (Ratio < 0.7 = More calls than puts = Bullish)\n"
+                                stock_context += f"   ⚠️ CRITICAL: Options flow data suggests CALLS even if sentiment seems negative\n"
+                            if options_flow_sentiment_divergence:
+                                stock_context += f"\n⚠️ OPTIONS FLOW vs SENTIMENT DIVERGENCE: Options flow contradicts sentiment - Prioritize options flow data\n"
+                                stock_context += f"   Options flow shows actual trading activity (smart money), which is more reliable than sentiment\n"
+                            
+                            # Add volume context if available
+                            if volume > 0:
+                                avg_volume = stock_data.get('average_volume', volume)
+                                if volume > avg_volume * 1.5:
+                                    stock_context += f"📊 HIGH VOLUME: {volume:,} shares (above average) - Confirms signal strength\n"
+                                elif volume < avg_volume * 0.5:
+                                    stock_context += f"📊 LOW VOLUME: {volume:,} shares (below average) - Lower confidence, wait for confirmation\n"
+                            
                             stock_context += f"\n⚠️  IMPORTANT: This is sentiment analysis only, not financial advice.\n"
+                            stock_context += f"Time horizons are estimates based on current data patterns.\n"
                             stock_context += f"Always do your own research and consider risk management.\n"
                             stock_context += f"{'═'*70}\n\n"
                             
@@ -710,8 +1103,14 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
                                 stock_context += f"2. News Sentiment: {news_sentiment.get('sentiment_label')} from {news_sentiment.get('news_count', 0)} articles\n"
                             if reddit_sentiment:
                                 stock_context += f"3. Reddit Sentiment: {reddit_sentiment.get('sentiment_label')} from {reddit_sentiment.get('mentions', 0)} posts\n"
-                            stock_context += f"4. Investment Guidance: {investment_guidance}\n"
-                            stock_context += f"5. Call/Put Recommendation: {call_put_recommendation}\n\n"
+                            stock_context += f"4. Trading Guidance: {investment_guidance}\n"
+                            stock_context += f"5. Call/Put Recommendation: {call_put_recommendation}\n"
+                            if time_horizon:
+                                stock_context += f"6. Time Horizon: {time_horizon} (short-term trading window)\n"
+                            if signal_strength:
+                                stock_context += f"7. Signal Strength: {signal_strength}\n"
+                            stock_context += f"\n⚠️ CRITICAL: Always state the time horizon when giving trading recommendations.\n"
+                            stock_context += f"Example: 'CALL options recommended for 1-2 day timeframe' or 'PUT options for 6-24 hour window'\n"
                             stock_context += f"DO NOT SKIP THESE NUMBERS - THEY ARE CRITICAL FOR INVESTMENT DECISIONS.\n"
                             stock_context += f"{'🚨'*25}\n\n"
                         
@@ -807,6 +1206,42 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
             # Return helpful error message instead of generic "no access" message
             return f"I encountered an issue fetching historical data for {symbol}: {error_msg}. Please try a different date or verify the stock symbol is correct."
         
+        # If documents contain stock symbols, fetch current prices for comparison
+        # Extract symbols from document context if present
+        document_symbols = []
+        if document_context and "[DETECTED STOCK SYMBOLS IN DOCUMENTS:" in document_context:
+            try:
+                # re is already imported at the top of the file
+                # Extract symbols from the context string
+                symbols_match = re.search(r'\[DETECTED STOCK SYMBOLS IN DOCUMENTS: ([^\]]+)\]', document_context)
+                if symbols_match:
+                    symbols_str = symbols_match.group(1)
+                    document_symbols = [s.strip() for s in symbols_str.split(',') if s.strip()]
+            except Exception as e:
+                logger.warning(f"Could not extract symbols from document context: {e}")
+        
+        if document_symbols and document_context:
+            # stock_data_service is already imported at the top of the file
+            current_prices_context = "\n\n[CURRENT MARKET PRICES FOR DOCUMENT SYMBOLS - COMPARE WITH DOCUMENT DATA]\n"
+            current_prices_context += "⚠️ CRITICAL: Compare these CURRENT prices with document data and warn if significant changes occurred.\n\n"
+            
+            for doc_symbol in document_symbols:
+                try:
+                    current_quote = stock_data_service.get_stock_quote(doc_symbol)
+                    if current_quote and "error" not in current_quote:
+                        current_price = current_quote.get('current_price', 0)
+                        change = current_quote.get('change', 0)
+                        change_pct = current_quote.get('change_percent', 0)
+                        current_prices_context += f"{doc_symbol} Current Price: ${current_price:.2f} (Change: ${change:+.2f}, {change_pct:+.2f}%)\n"
+                        logger.info(f"Fetched current price for {doc_symbol} from document: ${current_price}")
+                except Exception as e:
+                    logger.warning(f"Could not fetch current price for {doc_symbol}: {e}")
+                    current_prices_context += f"{doc_symbol}: Unable to fetch current price\n"
+            
+            current_prices_context += "\n⚠️ IMPORTANT: If document prices differ significantly from current prices, warn the user about outdated data.\n"
+            current_prices_context += "Example: 'Note: The document shows TSLA at $XXX, but current price is $YYY (a $ZZ change).'\n"
+            document_context += current_prices_context
+        
         # If we have stock data but query wasn't unclear, ensure we still return the data
         # This handles cases where LLM might not use the stock_context properly
         if symbol and stock_data and "error" not in stock_data and stock_context:
@@ -852,18 +1287,46 @@ BE DIRECT. BE ACCURATE. USE ONLY THE DATA PROVIDED."""
                         if reddit_sentiment:
                             sentiment_info += f"\n- Reddit Sentiment: {reddit_sentiment.get('sentiment_label')} from {reddit_sentiment.get('mentions', 0)} posts (Score: {reddit_sentiment.get('sentiment_score', 0):+.3f}, Bullish: {reddit_sentiment.get('bullish_posts', 0)}, Bearish: {reddit_sentiment.get('bearish_posts', 0)})"
                         
-                        # Add investment guidance
-                        if overall_score >= 0.2:
+                        # Add investment guidance with time horizon
+                        change_pct = stock_data.get('change_percent', 0)
+                        change = stock_data.get('change', 0)
+                        
+                        # Check alignment
+                        sentiment_price_aligned = (overall_score > 0.2 and change > 0) or (overall_score < -0.2 and change < 0)
+                        
+                        if overall_score >= 0.5:
                             call_put = "CALL"
-                            guidance = "Consider CALL options or LONG positions"
+                            if sentiment_price_aligned and change_pct > 2:
+                                guidance = "STRONG BULLISH - CALL options (1-3 day timeframe). Strong sentiment + price momentum alignment."
+                            else:
+                                guidance = "STRONG BULLISH - CALL options (1-2 day timeframe). Strong positive sentiment."
+                        elif overall_score >= 0.2:
+                            call_put = "CALL"
+                            if sentiment_price_aligned and change_pct > 1:
+                                guidance = "BULLISH - CALL options (6-24 hour timeframe). Moderate sentiment + price momentum."
+                            else:
+                                guidance = "SLIGHTLY BULLISH - CALL options (12-48 hour timeframe). Monitor for stronger signals."
+                        elif overall_score <= -0.5:
+                            call_put = "PUT"
+                            if sentiment_price_aligned and change_pct < -2:
+                                guidance = "STRONG BEARISH - PUT options (1-3 day timeframe). Strong negative sentiment + price decline alignment."
+                            else:
+                                guidance = "STRONG BEARISH - PUT options (1-2 day timeframe). Strong negative sentiment."
                         elif overall_score <= -0.2:
                             call_put = "PUT"
-                            guidance = "Consider PUT options or SHORT positions"
+                            if sentiment_price_aligned and change_pct < -1:
+                                guidance = "BEARISH - PUT options (6-24 hour timeframe). Moderate negative sentiment + price decline."
+                            else:
+                                guidance = "SLIGHTLY BEARISH - PUT options (12-48 hour timeframe). Monitor for stronger signals."
                         else:
                             call_put = "NEUTRAL"
-                            guidance = "Wait for clearer signals"
+                            guidance = "NEUTRAL - Wait for clearer signals (no position recommended). Monitor for sentiment/price alignment."
                         
-                        sentiment_info += f"\n- Investment Guidance: {guidance}\n- Call/Put Recommendation: {call_put}"
+                        sentiment_info += f"\n- Trading Guidance: {guidance}\n- Call/Put Recommendation: {call_put}"
+                        # Extract and add time horizon if present
+                        time_match = re.search(r'\((\d+[-\s]\d+\s*(?:hour|day|hours|days))', guidance)
+                        if time_match:
+                            sentiment_info += f"\n- Time Horizon: {time_match.group(1)}"
                         
                         response_text += sentiment_info
         

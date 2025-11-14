@@ -164,8 +164,15 @@ class MultiAgentSystem:
             state["response"] = response
             logger.info("General agent response generated")
         except Exception as e:
-            logger.error(f"Error in general agent: {e}")
-            state["response"] = f"I apologize, but I encountered an error processing your question. Please try again."
+            logger.error(f"Error in general agent: {e}", exc_info=True)
+            # Provide more helpful error message with details
+            error_msg = str(e)
+            if "stock_data_service" in error_msg:
+                state["response"] = f"I encountered a technical issue while fetching stock data. The error has been logged. Please try again in a moment."
+            elif "rate limit" in error_msg.lower() or "429" in error_msg:
+                state["response"] = f"The market data service is temporarily rate-limited. Please wait a moment and try again."
+            else:
+                state["response"] = f"I apologize, but I encountered an error processing your question: {error_msg}. Please try again."
         
         return state
     
