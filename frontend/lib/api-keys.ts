@@ -81,6 +81,8 @@ async function decryptKey(ciphertext: string): Promise<string> {
     const decoder = new TextDecoder();
     return decoder.decode(decrypted);
   } catch (error) {
+    // Return null instead of throwing to allow graceful handling
+    console.warn("Failed to decrypt API key. It may be corrupted or encrypted with a different key:", error);
     throw new Error("Failed to decrypt API key. It may be corrupted.");
   }
 }
@@ -128,9 +130,19 @@ export async function getApiKey(provider: ProviderType): Promise<string | null> 
 
   try {
     const data: StoredApiKey = JSON.parse(stored);
-    return await decryptKey(data.key);
+    try {
+      return await decryptKey(data.key);
+    } catch (decryptError) {
+      // Decryption failed - key may be corrupted or encrypted with different key
+      console.warn(`Failed to decrypt API key for ${provider}. Removing corrupted key.`, decryptError);
+      // Remove corrupted key to prevent repeated errors
+      removeApiKey(provider);
+      return null;
+    }
   } catch (error) {
     console.error(`Failed to retrieve API key for ${provider}:`, error);
+    // Remove corrupted data
+    removeApiKey(provider);
     return null;
   }
 }

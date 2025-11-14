@@ -148,8 +148,14 @@ export async function getProviderModel(
  * Check if a provider has a valid API key
  */
 export async function isProviderAvailable(provider: ProviderType): Promise<boolean> {
-  const apiKey = await getApiKey(provider);
-  return apiKey !== null && apiKey.length > 0;
+  try {
+    const apiKey = await getApiKey(provider);
+    return apiKey !== null && apiKey.length > 0;
+  } catch (error) {
+    // Gracefully handle errors (e.g., corrupted keys)
+    console.warn(`Error checking availability for ${provider}:`, error);
+    return false;
+  }
 }
 
 /**
@@ -160,8 +166,13 @@ export async function getAvailableProviders(): Promise<ProviderType[]> {
   const allProviders: ProviderType[] = ["openai", "anthropic", "google", "openrouter"];
 
   for (const provider of allProviders) {
-    if (await isProviderAvailable(provider)) {
-      providers.push(provider);
+    try {
+      if (await isProviderAvailable(provider)) {
+        providers.push(provider);
+      }
+    } catch (error) {
+      // Skip providers with errors (e.g., corrupted keys)
+      console.warn(`Skipping provider ${provider} due to error:`, error);
     }
   }
 
@@ -183,23 +194,29 @@ export interface ModelInfo {
  * Get all available models from all providers with API keys
  */
 export async function getAllAvailableModels(): Promise<ModelInfo[]> {
-  const availableProviders = await getAvailableProviders();
-  const allModels: ModelInfo[] = [];
+  try {
+    const availableProviders = await getAvailableProviders();
+    const allModels: ModelInfo[] = [];
 
-  for (const provider of availableProviders) {
-    const config = PROVIDER_CONFIGS[provider];
-    for (const model of config.models) {
-      allModels.push({
-        id: `${provider}:${model}`,
-        provider,
-        model,
-        providerName: config.name,
-        cost: getModelCost(model),
-      });
+    for (const provider of availableProviders) {
+      const config = PROVIDER_CONFIGS[provider];
+      for (const model of config.models) {
+        allModels.push({
+          id: `${provider}:${model}`,
+          provider,
+          model,
+          providerName: config.name,
+          cost: getModelCost(model),
+        });
+      }
     }
-  }
 
-  return allModels;
+    return allModels;
+  } catch (error) {
+    // Gracefully handle errors and return empty array if something goes wrong
+    console.error("Error getting available models:", error);
+    return [];
+  }
 }
 
 /**
