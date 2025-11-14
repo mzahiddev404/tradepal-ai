@@ -74,11 +74,11 @@ export function MultiLLMComparison() {
     }));
   };
 
-      const handleSuggestionClick = (suggestion: string) => {
-        handleSend(suggestion);
-        // Collapse all categories after selection
-        setExpandedCategory(null);
-      };
+  const handleSuggestionClick = (suggestion: string) => {
+    handleSend(suggestion);
+    // Collapse all categories after selection
+    setExpandedCategory(null);
+  };
 
   const MAX_PREVIEW_LENGTH = 500;
 
