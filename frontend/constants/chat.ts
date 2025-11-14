@@ -4,15 +4,31 @@
 
 export const CHAT_SUGGESTIONS = [
   {
+    text: "What's the current price of SPY?",
+    category: "stock" as const,
+  },
+  {
     text: "What's the current price of TSLA?",
     category: "stock" as const,
   },
   {
-    text: "What patterns should I watch in SPY?",
+    text: "Where's the next support and resistance?",
     category: "stock" as const,
   },
   {
-    text: "Get me the latest SPY stock price and market data",
+    text: "Any headlines, Fed updates, or macro data affecting SPY or TSLA?",
+    category: "stock" as const,
+  },
+  {
+    text: "What's the options flow or put/call ratio?",
+    category: "stock" as const,
+  },
+  {
+    text: "Short insight (bullish/bearish) in one sentence.",
+    category: "stock" as const,
+  },
+  {
+    text: "What patterns should I watch in SPY?",
     category: "stock" as const,
   },
   {
@@ -25,14 +41,6 @@ export const CHAT_SUGGESTIONS = [
   },
   {
     text: "How do I get started with trading?",
-    category: "stock" as const,
-  },
-  {
-    text: "Compare SPY and TSLA sentiment",
-    category: "stock" as const,
-  },
-  {
-    text: "What are common trading mistakes?",
     category: "stock" as const,
   },
 ] as const;

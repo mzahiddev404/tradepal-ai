@@ -14,7 +14,12 @@ const SYSTEM_PROMPT = `You are a stock market and investing AI assistant. Your e
 - Risk assessment and portfolio management
 - Investment education and best practices
 
-When users ask about stock prices or market data, use the get_stock_price function to fetch current data.
+When users ask about stock prices or market data, provide responses in this specific format:
+
+"SYMBOL \${price} at {time}, testing resistance near \${resistance} (\${range}). Momentum favors {bulls/bears}, but volatility remains {level}; next catalysts include {catalysts}."
+
+Example: "TSLA \$245.50 at 3:15 PM ET, testing resistance near \$250 (\$240-\$255). Momentum favors bulls, but volatility remains high; next catalysts include Q4 earnings and delivery numbers."
+
 Always use real-time data when available. Be concise, direct, and actionable.`;
 
 // Stock price function using free Yahoo Finance API (no API key required)
@@ -175,7 +180,7 @@ export async function POST(request: NextRequest) {
 
         // Check if prompt is asking for stock price
         const stockSymbolMatch = prompt.match(/\b(TSLA|AAPL|SPY|MSFT|NVDA|GOOGL|AMZN|META|NFLX|DIS|JPM|BAC|WMT|V|MA|HD|PG|JNJ|UNH|XOM|CVX)\b/i);
-        const isStockPriceQuery = /\b(price|quote|current|latest|stock|trading|symbol|ticker|how much|what.*price)\b/i.test(prompt);
+        const isStockPriceQuery = /\b(price|quote|current|latest|stock|trading|symbol|ticker|how much|what.*price|summarize|analyze)\b/i.test(prompt);
         
         // If it's a stock price query, fetch the data first and include it in the prompt
         let enhancedPrompt = prompt;
@@ -187,22 +192,34 @@ export async function POST(request: NextRequest) {
             if (priceData.error) {
               enhancedPrompt = `${prompt}\n\nNote: I encountered an error fetching the stock price: ${priceData.error}`;
             } else {
-              const changeSign = (priceData.change || 0) >= 0 ? '+' : '';
-              const percentSign = (priceData.changePercent || 0) >= 0 ? '+' : '';
-              const priceStr = (priceData.price || 0).toFixed(2);
-              const changeStr = (priceData.change || 0).toFixed(2);
-              const percentStr = (priceData.changePercent || 0).toFixed(2);
-              const volumeStr = priceData.volume ? priceData.volume.toLocaleString() : 'N/A';
-              const highStr = priceData.high ? '$' + priceData.high.toFixed(2) : 'N/A';
-              const lowStr = priceData.low ? '$' + priceData.low.toFixed(2) : 'N/A';
+              const currentTime = new Date().toLocaleTimeString('en-US', { 
+                timeZone: 'America/New_York', 
+                hour: 'numeric', 
+                minute: '2-digit',
+                hour12: true 
+              }) + ' ET';
               
-              enhancedPrompt = prompt + '\n\nCurrent market data for ' + symbol + ':\n' +
-                '- Price: $' + priceStr + '\n' +
-                '- Change: ' + changeSign + changeStr + ' (' + percentSign + percentStr + '%)\n' +
-                '- Market State: ' + (priceData.marketState || 'UNKNOWN') + '\n' +
-                '- Volume: ' + volumeStr + '\n' +
-                '- High: ' + highStr + '\n' +
-                '- Low: ' + lowStr;
+              const price = (priceData.price || 0).toFixed(2);
+              const change = (priceData.change || 0);
+              const changePercent = (priceData.changePercent || 0);
+              const high = priceData.high || priceData.price || 0;
+              const low = priceData.low || priceData.price || 0;
+              const range = `$${low.toFixed(2)}-$${high.toFixed(2)}`;
+              const resistance = high.toFixed(2);
+              const momentum = change >= 0 ? 'bulls' : 'bears';
+              const volatility = Math.abs(changePercent) > 3 ? 'high' : Math.abs(changePercent) > 1.5 ? 'moderate' : 'low';
+              
+              enhancedPrompt = `${prompt}\n\nCurrent market data for ${symbol}:\n` +
+                `- Price: $${price}\n` +
+                `- Time: ${currentTime}\n` +
+                `- Change: ${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%)\n` +
+                `- Range: ${range}\n` +
+                `- Resistance: $${resistance}\n` +
+                `- High: $${high.toFixed(2)}\n` +
+                `- Low: $${low.toFixed(2)}\n` +
+                `- Volume: ${priceData.volume ? priceData.volume.toLocaleString() : 'N/A'}\n` +
+                `- Market State: ${priceData.marketState || 'UNKNOWN'}\n\n` +
+                `Please format your response as: "${symbol} $${price} at ${currentTime}, testing resistance near $${resistance} (${range}). Momentum favors ${momentum}, but volatility remains ${volatility}; next catalysts include {relevant catalysts based on the stock}."`;
             }
           } catch (e) {
             console.error(`[${provider}:${model}] Error fetching stock price:`, e);
