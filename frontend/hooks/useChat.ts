@@ -72,22 +72,7 @@ export function useChat(): UseChatReturn {
         ? err.message 
         : "Sorry, I couldn't connect to the server. Please make sure the backend is running.";
       
-      // If it's a network error, provide helpful instructions
-      if (errorContent.includes("Backend server is not running")) {
-        // Format the multi-line error message
-        errorContent = errorContent.replace(/\n\n/g, "\n");
-      } else if (errorContent.includes("Network error") || errorContent.includes("Could not connect")) {
-        errorContent = `Backend Server Not Running
-
-Standard Chat requires the backend server to be running.
-
-To start the backend:
-1. Open terminal
-2. Run: cd tradepal-ai/backend
-3. Run: python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
-
-Alternative: Use Compare Chat (top navigation) which works without the backend and includes real-time stock data and news.`;
-      }
+      // Error message already formatted correctly from api-client.ts, no need to reformat
       
       const errorMessage: Message = {
         id: `error-${Date.now()}`,

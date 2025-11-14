@@ -140,7 +140,7 @@ export async function apiRequest<T>(
         if (error instanceof TypeError && error.message.includes("fetch")) {
           // Provide helpful error message for Standard Chat when backend is not running
           throw new ApiError(
-            "Backend server is not running. Please start the backend server:\n\ncd tradepal-ai/backend\npython -m uvicorn main:app --reload --host 0.0.0.0 --port 8000\n\nOr use Compare Chat which works without the backend.",
+            "Backend Server Not Running\n\nStandard Chat requires the backend server to be running.\n\nTo start the backend:\n1. Open terminal\n2. Run: cd tradepal-ai/backend\n3. Run: python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000\n\nAlternative: Use Compare Chat (top navigation) which works without the backend and includes real-time stock data and news.",
             0,
             "Network Error"
           );
