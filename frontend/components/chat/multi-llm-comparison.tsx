@@ -17,6 +17,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { AlertCircle, CheckCircle, XCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CHAT_SUGGESTIONS } from "@/constants/chat";
+import ReactMarkdown from "react-markdown";
 
 export function MultiLLMComparison() {
       const [selectedModelIds, setSelectedModelIds] = useState<string[]>([]);
@@ -252,11 +253,22 @@ export function MultiLLMComparison() {
                       )}
                       {response?.content && (
                         <div className="prose prose-invert max-w-none">
-                          <p className="text-[#dcdcdc] whitespace-pre-wrap leading-relaxed">
-                            {expandedResponses[modelId] || response.content.length <= MAX_PREVIEW_LENGTH
-                              ? response.content
-                              : `${response.content.slice(0, MAX_PREVIEW_LENGTH)}...`}
-                          </p>
+                          <div className="text-[#dcdcdc] leading-relaxed">
+                            <ReactMarkdown
+                              components={{
+                                strong: ({node, ...props}) => <strong className="font-bold text-[#34c759]" {...props} />,
+                                p: ({node, ...props}) => <p className="mb-3 text-[#dcdcdc]" {...props} />,
+                                ul: ({node, ...props}) => <ul className="list-disc ml-6 mb-3 space-y-1" {...props} />,
+                                li: ({node, ...props}) => <li className="text-[#dcdcdc]" {...props} />,
+                                h2: ({node, ...props}) => <h2 className="text-lg font-semibold mt-4 mb-2 text-[#dcdcdc]" {...props} />,
+                                h3: ({node, ...props}) => <h3 className="text-base font-semibold mt-3 mb-2 text-[#dcdcdc]" {...props} />,
+                              }}
+                            >
+                              {expandedResponses[modelId] || response.content.length <= MAX_PREVIEW_LENGTH
+                                ? response.content
+                                : `${response.content.slice(0, MAX_PREVIEW_LENGTH)}...`}
+                            </ReactMarkdown>
+                          </div>
                           {response.content.length > MAX_PREVIEW_LENGTH && (
                             <Button
                               variant="ghost"

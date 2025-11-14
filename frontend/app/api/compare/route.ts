@@ -622,16 +622,23 @@ export async function POST(request: NextRequest) {
                     dataSection += optionsContext;
                   }
                   
-                  // Build response template with placeholders
-                  let responseTemplate = `${symbol} $${price} at ${displayTime}, testing resistance near $${resistance} (${range}). Momentum favors ${momentum}, but volatility remains ${volatility}`;
+                  // Build response template with markdown formatting for better readability
+                  let responseTemplate = `**${symbol}** **$${price}** at ${displayTime}, testing resistance near **$${resistance}** (**${range}**). Momentum favors ${momentum}, but volatility remains ${volatility}`;
                   
-                  if (newsContext) {
-                    responseTemplate += `; recent news: {you MUST mention the specific news headlines from above}`;
+                  if (newsContext && newsResult && newsResult.headlines && newsResult.headlines.length > 0) {
+                    responseTemplate += `\n\n**Recent News:**\n${newsResult.headlines.slice(0, 3).map((h: string) => `- ${h}`).join('\n')}`;
                   }
                   if (optionsContext) {
-                    responseTemplate += `; options flow: {you MUST mention the put/call ratio and unusual activity from above}`;
+                    const optionsText = putCallResult?.summary || 
+                      (putCallResult?.ratio !== null && putCallResult?.ratio !== undefined 
+                        ? `Put/call ratio: ${parseFloat(putCallResult.ratio).toFixed(2)} (${putCallResult.interpretation || 'neutral'} sentiment)`
+                        : 'Options flow data available');
+                    responseTemplate += `\n\n**Options Flow:**\n${optionsText}`;
+                    if (unusualResult?.summary) {
+                      responseTemplate += `\n${unusualResult.summary}`;
+                    }
                   }
-                  responseTemplate += `; next catalysts include {relevant catalysts based on the stock${newsContext ? ' and recent news' : ''}}`;
+                  responseTemplate += `\n\n**Next Catalysts:** {relevant catalysts based on the stock${newsContext ? ' and recent news' : ''}}`;
                   
                   enhancedPrompt = `${prompt}\n\nIMPORTANT: Use ONLY the exact market data provided below. Do NOT invent or estimate prices.\n\n${dataSection}\n\n` +
                     `CRITICAL INSTRUCTIONS:\n` +
@@ -639,9 +646,15 @@ export async function POST(request: NextRequest) {
                     `2. Use EXACTLY ${displayTime} as the time\n` +
                     `3. Use EXACTLY $${resistance} as the resistance level\n` +
                     `4. Use EXACTLY ${range} as the range\n` +
-                    `${newsContext ? `5. CRITICAL: You MUST mention the recent news headlines provided above. Do NOT skip this information.\n` : ''}` +
-                    `${optionsContext ? `6. CRITICAL: You MUST include the options flow data (put/call ratio and unusual activity) provided above. Do NOT skip this information.\n` : ''}` +
-                    `7. Format your response EXACTLY as: "${responseTemplate}."\n` +
+                    `${newsContext ? `5. CRITICAL: You MUST mention the recent news headlines provided above. Format them as a bulleted list under "Recent News:" heading on a new line.\n` : ''}` +
+                    `${optionsContext ? `6. CRITICAL: You MUST include the options flow data (put/call ratio and unusual activity) provided above. Format it under "Options Flow:" heading on a new line.\n` : ''}` +
+                    `7. Format your response using markdown for readability:\n` +
+                    `   - Use **bold** for ticker symbols (e.g., **SPY**) and prices (e.g., **$671.93**)\n` +
+                    `   - Start "Recent News:" on a new line with **bold** heading\n` +
+                    `   - Start "Options Flow:" on a new line with **bold** heading\n` +
+                    `   - Start "Next Catalysts:" on a new line with **bold** heading\n` +
+                    `   - Use bullet points (-) for news items\n` +
+                    `   - Use double line breaks (\\n\\n) between sections\n` +
                     `8. Do NOT invent or estimate any price values - use only the exact numbers provided above.\n` +
                     `${newsContext || optionsContext ? `9. IMPORTANT: The data above includes ${newsContext ? 'news headlines' : ''}${newsContext && optionsContext ? ' and ' : ''}${optionsContext ? 'options flow data' : ''}. You MUST reference this data in your response - do not ignore it, do not ask for it, and do not say it's not available. It IS available and provided above.` : ''}`;
                   
