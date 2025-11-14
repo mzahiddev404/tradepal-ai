@@ -137,10 +137,18 @@ export function useMultiLLM(): UseMultiLLMReturn {
 
         const data = await response.json();
         
+        console.log("API Response received:", data);
+        
         // Update responses from API
         if (data.responses && Array.isArray(data.responses)) {
           data.responses.forEach((result: any) => {
             const modelId = result.modelId || `${result.provider}:${result.model}`;
+            console.log(`Updating response for ${modelId}:`, {
+              hasContent: !!result.content,
+              contentLength: result.content?.length || 0,
+              hasError: !!result.error,
+              completed: result.completed,
+            });
             setResponses((prev) => ({
               ...prev,
               [modelId]: {
@@ -154,6 +162,9 @@ export function useMultiLLM(): UseMultiLLMReturn {
               },
             }));
           });
+        } else {
+          console.error("Invalid response format:", data);
+          setError("Invalid response format from server");
         }
       } catch (err) {
         console.error("Error calling compare API:", err);

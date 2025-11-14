@@ -12,12 +12,12 @@ interface UploadViewProps {
 
 export function UploadView({ onReturnToChat }: UploadViewProps) {
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-slate-50 to-white">
-      <div className="flex-shrink-0 p-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+    <div className="flex flex-col h-full bg-gradient-to-b from-[#1a1e23] to-[#141820]">
+      <div className="flex-shrink-0 p-4 border-b border-[#2d3237] bg-gradient-to-b from-[#23272c] to-[#1a1e23]">
         <Button
           variant="outline"
           onClick={onReturnToChat}
-          className="h-9 border-slate-300 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 transition-colors"
+          className="h-9 border-[#2d3237] text-[#dcdcdc] hover:bg-[#32363a] hover:border-[#34c759] hover:text-[#34c759] transition-colors"
           aria-label="Return to chat"
         >
           ← Back to Chat
@@ -29,9 +29,9 @@ export function UploadView({ onReturnToChat }: UploadViewProps) {
             console.log("Files uploaded:", files);
           }}
         />
-        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm text-blue-900">
-            <span className="font-medium">Tip:</span> After uploading PDFs, ask questions about their content in the chat. The AI will retrieve relevant information from your documents.
+        <div className="mt-6 p-4 bg-[#1a2e1a] border border-[#34c759]/30 rounded-lg">
+          <p className="text-sm text-[#9ca3af]">
+            <span className="font-medium text-[#34c759]">Tip:</span> After uploading PDFs, ask questions about their content in the chat. The AI will retrieve relevant information from your documents.
           </p>
         </div>
       </ScrollArea>

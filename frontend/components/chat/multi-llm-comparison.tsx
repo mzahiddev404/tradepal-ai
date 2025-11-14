@@ -121,6 +121,17 @@ export function MultiLLMComparison() {
                 if (!modelInfo) return null;
                 
                 const response = responses[modelId];
+                
+                // Debug logging
+                if (response) {
+                  console.log(`[${modelId}] Response state:`, {
+                    hasContent: !!response.content,
+                    contentLength: response.content?.length || 0,
+                    isLoading: response.isLoading,
+                    completed: response.completed,
+                    hasError: !!response.error,
+                  });
+                }
 
                 return (
                   <Card

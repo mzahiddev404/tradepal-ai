@@ -186,8 +186,8 @@ export function PDFUpload({ onUploadComplete, maxSizeMB = 10 }: PDFUploadProps) 
       {/* Upload Area */}
       <Card
         className={cn(
-          "border-2 border-dashed border-slate-300 p-8 sm:p-10 text-center transition-colors bg-white",
-          isDragging && "border-slate-900 bg-slate-50"
+          "border-2 border-dashed border-[#2d3237] p-8 sm:p-10 text-center transition-colors bg-[#1a1e23]/95 backdrop-blur-sm",
+          isDragging && "border-[#34c759] bg-[#1a2e1a]/30"
         )}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -203,19 +203,19 @@ export function PDFUpload({ onUploadComplete, maxSizeMB = 10 }: PDFUploadProps) 
           aria-label="Upload PDF files"
         />
 
-        <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
+        <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-[#34c759] to-[#28a745] flex items-center justify-center shadow-lg border-2 border-[#28a745]">
           <Upload className="h-8 w-8 text-white" aria-hidden="true" />
         </div>
-        <h3 className="mt-4 text-base font-bold text-slate-900">Upload PDF Documents</h3>
-        <p className="mt-2 text-sm text-slate-600">
+        <h3 className="mt-4 text-base font-bold text-[#dcdcdc]">Upload PDF Documents</h3>
+        <p className="mt-2 text-sm text-[#9ca3af]">
           Drag and drop PDF files here, or click to browse
         </p>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-[#6a6a6a]">
           Maximum file size: {maxSizeMB}MB
         </p>
 
         <Button 
-          className="mt-5 h-9 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md transition-all hover:shadow-lg" 
+          className="mt-5 h-9 bg-gradient-to-br from-[#34c759] to-[#28a745] hover:from-[#28a745] hover:to-[#1e7e34] border border-[#28a745] text-white shadow-md transition-all hover:shadow-lg" 
           onClick={() => fileInputRef.current?.click()}
         >
           Select Files
@@ -225,47 +225,47 @@ export function PDFUpload({ onUploadComplete, maxSizeMB = 10 }: PDFUploadProps) 
       {/* File List */}
       {files.length > 0 && (
         <div className="space-y-3">
-          <h4 className="text-sm font-medium text-slate-900">Uploaded Files</h4>
+          <h4 className="text-sm font-medium text-[#dcdcdc]">Uploaded Files</h4>
           {files.map((file) => (
-            <Card key={file.id} className="p-4 border-slate-200 bg-white">
+            <Card key={file.id} className="p-4 border-[#2d3237] bg-[#23272c]">
               <div className="flex items-start gap-3">
-                <File className="h-5 w-5 flex-shrink-0 text-slate-400" aria-hidden="true" />
+                <File className="h-5 w-5 flex-shrink-0 text-[#6a6a6a]" aria-hidden="true" />
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-sm font-medium text-slate-900">{file.name}</p>
+                    <p className="truncate text-sm font-medium text-[#dcdcdc]">{file.name}</p>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 flex-shrink-0 hover:bg-slate-100"
+                      className="h-7 w-7 flex-shrink-0 hover:bg-[#32363a]"
                       onClick={() => removeFile(file.id)}
                       aria-label={`Remove ${file.name}`}
                     >
-                      <X className="h-4 w-4 text-slate-500" />
+                      <X className="h-4 w-4 text-[#9ca3af] hover:text-[#ff3b30]" />
                     </Button>
                   </div>
 
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs text-[#9ca3af] mt-0.5">
                     {formatFileSize(file.size)}
                   </p>
 
                   {file.status === "uploading" && (
                     <div className="mt-3">
                       <Progress value={file.progress} className="h-1.5" />
-                      <p className="mt-1.5 text-xs text-slate-600">
+                      <p className="mt-1.5 text-xs text-[#9ca3af]">
                         Uploading... {file.progress}%
                       </p>
                     </div>
                   )}
 
                   {file.status === "success" && (
-                    <Badge variant="default" className="mt-2 bg-green-100 text-green-800 border-green-200">
+                    <Badge variant="default" className="mt-2 bg-[#1a2e1a] text-[#34c759] border-[#34c759]/30">
                       Uploaded
                     </Badge>
                   )}
 
                   {file.status === "error" && (
-                    <div className="mt-2 flex items-center gap-1.5 text-red-700">
+                    <div className="mt-2 flex items-center gap-1.5 text-[#ff6b6b]">
                       <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
                       <p className="text-xs">{file.error}</p>
                     </div>

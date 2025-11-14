@@ -4,7 +4,15 @@
 
 export const CHAT_SUGGESTIONS = [
   {
+    text: "What's the current price of TSLA?",
+    category: "stock" as const,
+  },
+  {
     text: "What patterns should I watch in SPY?",
+    category: "stock" as const,
+  },
+  {
+    text: "Get me the latest SPY stock price and market data",
     category: "stock" as const,
   },
   {
