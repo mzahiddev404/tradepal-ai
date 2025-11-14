@@ -11,18 +11,26 @@ import { MultiLLMComparison } from "@/components/chat/multi-llm-comparison";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { AppHeader } from "@/components/layout/app-header";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 type ChatMode = "standard" | "multi-llm";
 
 export default function ComparePage() {
+  const router = useRouter();
   const [chatMode, setChatMode] = useState<ChatMode>("multi-llm");
   const [showUpload, setShowUpload] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleModeChange = (mode: ChatMode) => {
-    setChatMode(mode);
-    setShowUpload(false);
-    setError(null);
+    if (mode === "standard") {
+      // Navigate to home page
+      router.push("/");
+    } else {
+      // Already on compare page, just update state
+      setChatMode(mode);
+      setShowUpload(false);
+      setError(null);
+    }
   };
 
   const handleToggleUpload = () => {

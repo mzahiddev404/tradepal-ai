@@ -1,3 +1,16 @@
+/**
+ * Compare Chat API Route
+ * 
+ * This route handles multi-LLM comparison requests for the Compare Chat feature.
+ * It includes:
+ * - Real-time stock price fetching (Yahoo Finance)
+ * - News headline fetching (Yahoo Finance RSS) - Compare Chat ONLY
+ * - Options flow data (put/call ratio, unusual activity)
+ * - Parallel LLM response generation
+ * 
+ * NOTE: News fetching is ONLY available in Compare Chat, not in Standard Chat.
+ * Standard Chat uses the backend multi-agent system without real-time news.
+ */
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -6,6 +19,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { z } from "zod";
 import { zodSchema } from "ai";
 import type { ProviderType } from "@/lib/api-keys";
+import { API_URL } from "@/lib/constants";
 
 const SYSTEM_PROMPT = `You are a stock market and investing AI assistant. Your expertise includes:
 - Stock market analysis and trading strategies
@@ -106,6 +120,82 @@ function findStockSymbol(input: string): string | null {
   }
   
   return null;
+}
+
+/**
+ * Direct RSS news fetch function for Compare Chat
+ * 
+ * This function fetches news headlines directly from Yahoo Finance RSS feed.
+ * Used as a fallback when the backend API is unavailable.
+ * 
+ * IMPORTANT: This is ONLY used in Compare Chat, not in Standard Chat.
+ * Standard Chat relies on the backend multi-agent system.
+ */
+async function getStockNewsDirect(symbol: string): Promise<{ symbol: string; headlines: string[]; error?: string }> {
+  try {
+    const upperSymbol = symbol.toUpperCase();
+    const yahooUrl = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${upperSymbol}&region=US&lang=en-US`;
+    
+    console.log(`[getStockNewsDirect] Fetching news for ${upperSymbol} from Yahoo Finance RSS...`);
+    
+    const response = await fetch(yahooUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const xmlText = await response.text();
+    
+    // Simple RSS parsing (RSS 2.0 format)
+    const headlines: string[] = [];
+    const titleMatches = xmlText.matchAll(/<title><!\[CDATA\[(.*?)\]\]><\/title>/g);
+    
+    for (const match of titleMatches) {
+      const title = match[1]?.trim();
+      // Skip feed title and empty titles
+      if (title && 
+          !title.toLowerCase().includes('yahoo') && 
+          !title.toLowerCase().includes('rss') &&
+          title.length > 10) {
+        headlines.push(title);
+        if (headlines.length >= 5) break; // Limit to 5 headlines
+      }
+    }
+    
+    // Fallback: try without CDATA
+    if (headlines.length === 0) {
+      const simpleMatches = xmlText.matchAll(/<title>(.*?)<\/title>/g);
+      for (const match of simpleMatches) {
+        const title = match[1]?.trim();
+        if (title && 
+            !title.toLowerCase().includes('yahoo') && 
+            !title.toLowerCase().includes('rss') &&
+            title.length > 10) {
+          headlines.push(title);
+          if (headlines.length >= 5) break;
+        }
+      }
+    }
+    
+    console.log(`[getStockNewsDirect] Successfully fetched ${headlines.length} headlines for ${upperSymbol}`);
+    
+    return {
+      symbol: upperSymbol,
+      headlines: headlines.slice(0, 5), // Return max 5 headlines
+    };
+  } catch (error: any) {
+    console.error(`[getStockNewsDirect] Error fetching news for ${symbol}:`, error);
+    return {
+      symbol: symbol.toUpperCase(),
+      headlines: [],
+      error: error.message || 'Failed to fetch news',
+    };
+  }
 }
 
 // Stock price function using free Yahoo Finance API (no API key required)
@@ -343,12 +433,95 @@ export async function POST(request: NextRequest) {
             let enhancedPrompt = prompt;
             if (isStockPriceQuery && !isPlatformQuestion && foundSymbol) {
               const symbol = foundSymbol.toUpperCase();
-              console.log(`[${provider}:${model}] Detected stock query for ${symbol}, fetching price and using template format...`);
+              console.log(`[${provider}:${model}] Detected stock query for ${symbol}, fetching price, news, and options data...`);
               try {
-                const priceData = await getStockPrice(symbol);
-                if (priceData.error) {
-                  enhancedPrompt = `${prompt}\n\nNote: I encountered an error fetching the stock price: ${priceData.error}`;
-                } else {
+                // Fetch stock price, news, and options data in parallel
+                // NOTE: News fetching is Compare Chat ONLY - Standard Chat doesn't have this feature
+                // News: Try backend first, fallback to direct RSS fetch
+                const [priceData, newsData, putCallData, unusualActivity] = await Promise.allSettled([
+                  getStockPrice(symbol),
+                  fetch(`${API_URL}/api/stock/news/${symbol}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: AbortSignal.timeout(10000) // 10 second timeout
+                  }).then(async r => {
+                    if (!r.ok) {
+                      console.warn(`[${provider}:${model}] Backend news API failed (${r.status}), trying direct RSS fetch...`);
+                      // Fallback to direct RSS fetch
+                      return await getStockNewsDirect(symbol);
+                    }
+                    const data = await r.json();
+                    console.log(`[${provider}:${model}] News API success:`, { 
+                      symbol: data.symbol, 
+                      headlineCount: data.headlines?.length || 0,
+                      hasError: !!data.error 
+                    });
+                    return data;
+                  }).catch(async err => {
+                    console.warn(`[${provider}:${model}] Backend news fetch failed: ${err.message}, trying direct RSS fetch...`);
+                    // Fallback to direct RSS fetch
+                    try {
+                      return await getStockNewsDirect(symbol);
+                    } catch (fallbackErr: any) {
+                      console.error(`[${provider}:${model}] Direct RSS fetch also failed:`, fallbackErr.message);
+                      return { error: fallbackErr.message, headlines: [] };
+                    }
+                  }),
+                  fetch(`${API_URL}/api/stock/put-call-ratio/${symbol}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: AbortSignal.timeout(15000) // 15 second timeout for options data
+                  }).then(async r => {
+                    if (!r.ok) {
+                      console.error(`[${provider}:${model}] Put/call API error: ${r.status} ${r.statusText}`);
+                      return null;
+                    }
+                    return r.json();
+                  }).catch(err => {
+                    console.error(`[${provider}:${model}] Put/call fetch error:`, err.message);
+                    return null;
+                  }),
+                  fetch(`${API_URL}/api/stock/unusual-activity/${symbol}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: AbortSignal.timeout(15000) // 15 second timeout for options data
+                  }).then(async r => {
+                    if (!r.ok) {
+                      console.error(`[${provider}:${model}] Unusual activity API error: ${r.status} ${r.statusText}`);
+                      return null;
+                    }
+                    return r.json();
+                  }).catch(err => {
+                    console.error(`[${provider}:${model}] Unusual activity fetch error:`, err.message);
+                    return null;
+                  })
+                ]);
+                
+                const priceResult = priceData.status === 'fulfilled' ? priceData.value : null;
+                const newsResult = newsData.status === 'fulfilled' ? newsData.value : null;
+                const putCallResult = putCallData.status === 'fulfilled' ? putCallData.value : null;
+                const unusualResult = unusualActivity.status === 'fulfilled' ? unusualActivity.value : null;
+                
+                // Debug logging with detailed error info
+                console.log(`[${provider}:${model}] Data fetch results:`, {
+                  price: priceResult ? 'OK' : 'FAILED',
+                  news: newsResult 
+                    ? `OK (${newsResult.headlines?.length || 0} headlines, error: ${newsResult.error || 'none'})` 
+                    : `FAILED (status: ${newsData.status}, reason: ${newsData.status === 'rejected' ? newsData.reason?.message : 'unknown'})`,
+                  putCall: putCallResult 
+                    ? `OK (summary: ${putCallResult.summary || 'none'}, ratio: ${putCallResult.ratio || 'none'}, error: ${putCallResult.error || 'none'})` 
+                    : `FAILED (status: ${putCallData.status}, reason: ${putCallData.status === 'rejected' ? putCallData.reason?.message : 'unknown'})`,
+                  unusual: unusualResult 
+                    ? `OK (summary: ${unusualResult.summary || 'none'}, error: ${unusualResult.error || 'none'})` 
+                    : `FAILED (status: ${unusualActivity.status}, reason: ${unusualActivity.status === 'rejected' ? unusualActivity.reason?.message : 'unknown'})`,
+                });
+                
+                // Log full results for debugging
+                if (newsResult) console.log(`[${provider}:${model}] News result:`, JSON.stringify(newsResult, null, 2));
+                if (putCallResult) console.log(`[${provider}:${model}] Put/call result:`, JSON.stringify(putCallResult, null, 2));
+                if (unusualResult) console.log(`[${provider}:${model}] Unusual activity result:`, JSON.stringify(unusualResult, null, 2));
+                
+                if (priceResult && !priceResult.error) {
                   const currentTime = new Date().toLocaleTimeString('en-US', { 
                     timeZone: 'America/New_York', 
                     hour: 'numeric', 
@@ -356,19 +529,19 @@ export async function POST(request: NextRequest) {
                     hour12: true 
                   }) + ' ET';
                   
-                  const price = (priceData.price || 0).toFixed(2);
-                  const change = (priceData.change || 0);
-                  const changePercent = (priceData.changePercent || 0);
-                  const high = priceData.high || priceData.price || 0;
-                  const low = priceData.low || priceData.price || 0;
+                  const price = (priceResult.price || 0).toFixed(2);
+                  const change = (priceResult.change || 0);
+                  const changePercent = (priceResult.changePercent || 0);
+                  const high = priceResult.high || priceResult.price || 0;
+                  const low = priceResult.low || priceResult.price || 0;
                   const range = `$${low.toFixed(2)}-$${high.toFixed(2)}`;
                   const resistance = high.toFixed(2);
                   const momentum = change >= 0 ? 'bulls' : 'bears';
                   const volatility = Math.abs(changePercent) > 3 ? 'high' : Math.abs(changePercent) > 1.5 ? 'moderate' : 'low';
                   
                   // Use market time from API if available, otherwise use current time
-                  const displayTime = priceData.marketTime 
-                    ? priceData.marketTime.toLocaleTimeString('en-US', { 
+                  const displayTime = priceResult.marketTime 
+                    ? priceResult.marketTime.toLocaleTimeString('en-US', { 
                         timeZone: 'America/New_York', 
                         hour: 'numeric', 
                         minute: '2-digit',
@@ -376,13 +549,61 @@ export async function POST(request: NextRequest) {
                       }) + ' ET'
                     : currentTime;
                   
-                  const dataSourceNote = priceData.isRealTime 
+                  const dataSourceNote = priceResult.isRealTime 
                     ? ' (Real-time data from Yahoo Finance)'
                     : ' (Market data from Yahoo Finance)';
                   
+                  // Build news context
+                  let newsContext = "";
+                  if (newsResult && !newsResult.error && newsResult.headlines && Array.isArray(newsResult.headlines) && newsResult.headlines.length > 0) {
+                    const newsHeadlines = newsResult.headlines.slice(0, 3).join(", ");
+                    newsContext = `\n\nRecent News:\n${newsHeadlines}`;
+                    console.log(`[${provider}:${model}] ✓ News context added: ${newsHeadlines.substring(0, 50)}...`);
+                  } else {
+                    if (newsResult && newsResult.error) {
+                      console.warn(`[${provider}:${model}] ✗ News fetch failed: ${newsResult.error}`);
+                    } else if (!newsResult) {
+                      console.warn(`[${provider}:${model}] ✗ News result is null/undefined`);
+                    } else if (!newsResult.headlines || newsResult.headlines.length === 0) {
+                      console.warn(`[${provider}:${model}] ✗ No headlines in news result:`, newsResult);
+                    }
+                  }
+                  
+                  // Build options flow context
+                  let optionsContext = "";
+                  if (putCallResult && !putCallResult.error) {
+                    // Backend returns summary field
+                    if (putCallResult.summary && putCallResult.summary.trim().length > 0) {
+                      optionsContext += `\n\nOptions Flow: ${putCallResult.summary}`;
+                      console.log(`[${provider}:${model}] Put/call summary added: ${putCallResult.summary.substring(0, 50)}...`);
+                    } else if (putCallResult.ratio !== null && putCallResult.ratio !== undefined && !isNaN(putCallResult.ratio)) {
+                      // Fallback: construct summary from ratio data
+                      const interpretation = putCallResult.interpretation || 'neutral';
+                      const ratio = parseFloat(putCallResult.ratio).toFixed(2);
+                      optionsContext += `\n\nOptions Flow: Put/call ratio: ${ratio} (${interpretation} sentiment)`;
+                      console.log(`[${provider}:${model}] Put/call ratio constructed: ${ratio} (${interpretation})`);
+                    } else {
+                      console.log(`[${provider}:${model}] Put/call result has no usable data:`, putCallResult);
+                    }
+                  } else {
+                    console.log(`[${provider}:${model}] Put/call result has error or is null:`, putCallResult);
+                  }
+                  
+                  if (unusualResult && !unusualResult.error && unusualResult.summary && unusualResult.summary.trim().length > 0) {
+                    optionsContext += `\n${unusualResult.summary}`;
+                    console.log(`[${provider}:${model}] Unusual activity added: ${unusualResult.summary.substring(0, 50)}...`);
+                  } else {
+                    console.log(`[${provider}:${model}] No unusual activity - unusualResult:`, unusualResult);
+                  }
+                  
+                  // Log final context
+                  console.log(`[${provider}:${model}] Final newsContext length: ${newsContext.length}, optionsContext length: ${optionsContext.length}`);
+                  
                   // CRITICAL: Use EXACT price values from API - do not let model invent numbers
                   // Use template format ONLY for stock queries
-                  enhancedPrompt = `${prompt}\n\nIMPORTANT: Use ONLY the exact market data provided below. Do NOT invent or estimate prices.\n\nCurrent market data for ${symbol}${dataSourceNote}:\n` +
+                  
+                  // Build the data section
+                  let dataSection = `Current market data for ${symbol}${dataSourceNote}:\n` +
                     `- Price: $${price} (EXACT - use this exact value)\n` +
                     `- Time: ${displayTime}\n` +
                     `- Change: ${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%)\n` +
@@ -390,19 +611,52 @@ export async function POST(request: NextRequest) {
                     `- Resistance: $${resistance}\n` +
                     `- High: $${high.toFixed(2)}\n` +
                     `- Low: $${low.toFixed(2)}\n` +
-                    `- Volume: ${priceData.volume ? priceData.volume.toLocaleString() : 'N/A'}\n` +
-                    `- Market State: ${priceData.marketState || 'UNKNOWN'}\n` +
-                    `- Data Source: Yahoo Finance API (verified real-time)\n\n` +
+                    `- Volume: ${priceResult.volume ? priceResult.volume.toLocaleString() : 'N/A'}\n` +
+                    `- Market State: ${priceResult.marketState || 'UNKNOWN'}`;
+                  
+                  // Add news and options context prominently
+                  if (newsContext) {
+                    dataSection += newsContext;
+                  }
+                  if (optionsContext) {
+                    dataSection += optionsContext;
+                  }
+                  
+                  // Build response template with placeholders
+                  let responseTemplate = `${symbol} $${price} at ${displayTime}, testing resistance near $${resistance} (${range}). Momentum favors ${momentum}, but volatility remains ${volatility}`;
+                  
+                  if (newsContext) {
+                    responseTemplate += `; recent news: {you MUST mention the specific news headlines from above}`;
+                  }
+                  if (optionsContext) {
+                    responseTemplate += `; options flow: {you MUST mention the put/call ratio and unusual activity from above}`;
+                  }
+                  responseTemplate += `; next catalysts include {relevant catalysts based on the stock${newsContext ? ' and recent news' : ''}}`;
+                  
+                  enhancedPrompt = `${prompt}\n\nIMPORTANT: Use ONLY the exact market data provided below. Do NOT invent or estimate prices.\n\n${dataSection}\n\n` +
                     `CRITICAL INSTRUCTIONS:\n` +
                     `1. Use EXACTLY $${price} as the price - do not change this number\n` +
                     `2. Use EXACTLY ${displayTime} as the time\n` +
                     `3. Use EXACTLY $${resistance} as the resistance level\n` +
                     `4. Use EXACTLY ${range} as the range\n` +
-                    `5. Format your response EXACTLY as: "${symbol} $${price} at ${displayTime}, testing resistance near $${resistance} (${range}). Momentum favors ${momentum}, but volatility remains ${volatility}; next catalysts include {relevant catalysts based on the stock}."\n` +
-                    `6. Do NOT invent or estimate any price values - use only the exact numbers provided above.`;
+                    `${newsContext ? `5. CRITICAL: You MUST mention the recent news headlines provided above. Do NOT skip this information.\n` : ''}` +
+                    `${optionsContext ? `6. CRITICAL: You MUST include the options flow data (put/call ratio and unusual activity) provided above. Do NOT skip this information.\n` : ''}` +
+                    `7. Format your response EXACTLY as: "${responseTemplate}."\n` +
+                    `8. Do NOT invent or estimate any price values - use only the exact numbers provided above.\n` +
+                    `${newsContext || optionsContext ? `9. IMPORTANT: The data above includes ${newsContext ? 'news headlines' : ''}${newsContext && optionsContext ? ' and ' : ''}${optionsContext ? 'options flow data' : ''}. You MUST reference this data in your response - do not ignore it, do not ask for it, and do not say it's not available. It IS available and provided above.` : ''}`;
+                  
+                  // Log the final prompt for debugging
+                  console.log(`[${provider}:${model}] Enhanced prompt length: ${enhancedPrompt.length}, includes news: ${!!newsContext}, includes options: ${!!optionsContext}`);
+                } else if (priceResult && priceResult.error) {
+                  enhancedPrompt = `${prompt}\n\nNote: I encountered an error fetching the stock price: ${priceResult.error}`;
+                } else {
+                  // Fallback to original prompt if price fetch failed
+                  enhancedPrompt = prompt;
                 }
               } catch (e) {
                 console.error(`[${provider}:${model}] Error fetching stock price:`, e);
+                // Fallback to original prompt on error
+                enhancedPrompt = prompt;
               }
             } else if (isStockPriceQuery && !isPlatformQuestion && !foundSymbol) {
               // Stock query but no symbol found - still try to help but don't force template

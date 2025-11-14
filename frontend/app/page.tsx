@@ -4,18 +4,26 @@ import { ChatContainer } from "@/components/chat/chat-container";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { AppHeader } from "@/components/layout/app-header";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 type ChatMode = "standard" | "multi-llm";
 
 export default function Home() {
+  const router = useRouter();
   const [chatMode, setChatMode] = useState<ChatMode>("standard");
   const [showUpload, setShowUpload] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleModeChange = (mode: ChatMode) => {
-    setChatMode(mode);
-    setShowUpload(false);
-    setError(null);
+    if (mode === "multi-llm") {
+      // Navigate to compare page
+      router.push("/compare");
+    } else {
+      // Already on standard page, just update state
+      setChatMode(mode);
+      setShowUpload(false);
+      setError(null);
+    }
   };
 
   const handleToggleUpload = () => {

@@ -640,6 +640,13 @@ class StockDataService:
             if row["volume"] > 100:  # Threshold for significant volume
                 reasons.append("High volume")
             
+            # Volume spike detection - compare to average volume across all strikes
+            if len(filtered_df) > 1:
+                avg_volume = filtered_df["volume"].mean()
+                if avg_volume > 0 and row["volume"] > (avg_volume * 2):
+                    spike_magnitude = row["volume"] / avg_volume
+                    reasons.append(f"Volume spike ({spike_magnitude:.1f}x average)")
+            
             if reasons:
                 filtered_df.at[idx, "unusual_activity"] = True
                 filtered_df.at[idx, "activity_reason"] = " | ".join(reasons)
@@ -652,6 +659,153 @@ class StockDataService:
             filtered_df = filtered_df[filtered_df["unusual_activity"] == True]
         
         return filtered_df
+    
+    def get_put_call_ratio(self, symbol: str) -> Dict[str, any]:
+        """
+        Get put/call ratio and summary for a stock symbol.
+        
+        Args:
+            symbol: Stock symbol
+            
+        Returns:
+            Dictionary with put/call ratio, interpretation, and summary text
+        """
+        try:
+            symbol_upper = symbol.upper()
+            
+            # Get options chain data
+            options_data = self.get_options_chain(
+                symbol_upper,
+                filter_expirations="front_week",
+                strike_range=10,  # Wider range for better ratio calculation
+                min_premium=0,  # No premium filter for ratio calculation
+                show_unusual_only=False
+            )
+            
+            if "error" in options_data:
+                return {
+                    "error": options_data["error"],
+                    "ratio": None,
+                    "interpretation": None,
+                    "summary": f"Unable to calculate put/call ratio for {symbol_upper}"
+                }
+            
+            calls = options_data.get("calls", [])
+            puts = options_data.get("puts", [])
+            
+            if not calls and not puts:
+                return {
+                    "error": "No options data available",
+                    "ratio": None,
+                    "interpretation": None,
+                    "summary": f"No options data available for {symbol_upper}"
+                }
+            
+            # Calculate total volumes
+            total_call_volume = sum(opt.get("volume", 0) for opt in calls)
+            total_put_volume = sum(opt.get("volume", 0) for opt in puts)
+            
+            # Calculate ratio
+            if total_call_volume > 0:
+                ratio = total_put_volume / total_call_volume
+            elif total_put_volume > 0:
+                ratio = float('inf')  # All puts, no calls
+            else:
+                ratio = 1.0  # No volume data
+            
+            # Interpret ratio
+            if ratio > 1.5:
+                interpretation = "bearish"
+                sentiment = "bearish sentiment"
+            elif ratio < 0.5:
+                interpretation = "bullish"
+                sentiment = "bullish sentiment"
+            else:
+                interpretation = "neutral"
+                sentiment = "neutral sentiment"
+            
+            summary = f"Put/call ratio: {ratio:.2f} ({sentiment})"
+            
+            return {
+                "symbol": symbol_upper,
+                "ratio": ratio,
+                "put_volume": total_put_volume,
+                "call_volume": total_call_volume,
+                "interpretation": interpretation,
+                "summary": summary
+            }
+        except Exception as e:
+            logger.error(f"Error calculating put/call ratio for {symbol}: {e}")
+            return {
+                "error": str(e),
+                "ratio": None,
+                "interpretation": None,
+                "summary": f"Error calculating put/call ratio for {symbol_upper}"
+            }
+    
+    def get_unusual_activity_summary(self, symbol: str) -> str:
+        """
+        Get text summary of unusual options activity for a stock.
+        
+        Args:
+            symbol: Stock symbol
+            
+        Returns:
+            Text summary of unusual activity
+        """
+        try:
+            symbol_upper = symbol.upper()
+            
+            # Get options chain with unusual activity filter
+            options_data = self.get_options_chain(
+                symbol_upper,
+                filter_expirations="front_week",
+                strike_range=5,
+                min_premium=50000,
+                show_unusual_only=True
+            )
+            
+            if "error" in options_data:
+                return ""
+            
+            calls = options_data.get("calls", [])
+            puts = options_data.get("puts", [])
+            
+            unusual_items = []
+            
+            # Get top unusual calls
+            unusual_calls = sorted(
+                [c for c in calls if c.get("unusual_activity", False)],
+                key=lambda x: x.get("estimated_premium", 0),
+                reverse=True
+            )[:2]
+            
+            for call in unusual_calls:
+                strike = call.get("strike", 0)
+                premium = call.get("estimated_premium", 0)
+                reason = call.get("activity_reason", "")
+                unusual_items.append(f"${strike:.0f} calls (Premium ${premium/1000:.0f}K, {reason})")
+            
+            # Get top unusual puts
+            unusual_puts = sorted(
+                [p for p in puts if p.get("unusual_activity", False)],
+                key=lambda x: x.get("estimated_premium", 0),
+                reverse=True
+            )[:2]
+            
+            for put in unusual_puts:
+                strike = put.get("strike", 0)
+                premium = put.get("estimated_premium", 0)
+                reason = put.get("activity_reason", "")
+                unusual_items.append(f"${strike:.0f} puts (Premium ${premium/1000:.0f}K, {reason})")
+            
+            if unusual_items:
+                return f"Unusual activity: {', '.join(unusual_items[:3])}"
+            else:
+                return ""
+        except Exception as e:
+            logger.error(f"Error getting unusual activity summary for {symbol}: {e}")
+            return ""
     
     def _detect_flow_patterns(self, options: List[Dict]) -> Dict[float, str]:
         """

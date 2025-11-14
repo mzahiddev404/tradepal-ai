@@ -116,6 +116,64 @@ async def get_options_chain(
         )
 
 
+@router.get("/news/{symbol}")
+async def get_stock_news(symbol: str):
+    """
+    Get recent news headlines for a stock symbol.
+    
+    Args:
+        symbol: Stock symbol
+        
+    Returns:
+        Dictionary with headlines array
+    """
+    try:
+        from utils.news_fetcher import news_fetcher
+        headlines = news_fetcher.get_stock_news(symbol.upper(), max_items=5)
+        return {"symbol": symbol.upper(), "headlines": headlines}
+    except Exception as e:
+        logger.error(f"Error fetching news for {symbol}: {e}")
+        return {"symbol": symbol.upper(), "headlines": [], "error": str(e)}
+
+
+@router.get("/put-call-ratio/{symbol}")
+async def get_put_call_ratio(symbol: str):
+    """
+    Get put/call ratio for a stock symbol.
+    
+    Args:
+        symbol: Stock symbol
+        
+    Returns:
+        Dictionary with put/call ratio and interpretation
+    """
+    try:
+        ratio_data = stock_data_service.get_put_call_ratio(symbol.upper())
+        return ratio_data
+    except Exception as e:
+        logger.error(f"Error calculating put/call ratio for {symbol}: {e}")
+        return {"symbol": symbol.upper(), "error": str(e), "ratio": None, "summary": ""}
+
+
+@router.get("/unusual-activity/{symbol}")
+async def get_unusual_activity_summary(symbol: str):
+    """
+    Get unusual activity summary for a stock symbol.
+    
+    Args:
+        symbol: Stock symbol
+        
+    Returns:
+        Dictionary with unusual activity summary text
+    """
+    try:
+        summary = stock_data_service.get_unusual_activity_summary(symbol.upper())
+        return {"symbol": symbol.upper(), "summary": summary}
+    except Exception as e:
+        logger.error(f"Error getting unusual activity for {symbol}: {e}")
+        return {"symbol": symbol.upper(), "summary": "", "error": str(e)}
+
+
 @router.get("/market/overview", response_model=MarketOverviewResponse)
 async def get_market_overview():
     """
