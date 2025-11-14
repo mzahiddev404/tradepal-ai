@@ -13,18 +13,19 @@ import { ChatInput } from "./chat-input";
 import { ModelSelector } from "./model-selector";
 import { useMultiLLM } from "@/hooks/useMultiLLM";
 import { PROVIDER_CONFIGS, getModelCost, parseModelId, getAllAvailableModels, type ProviderType, type ModelInfo } from "@/lib/llm-providers";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
-import { AlertCircle, CheckCircle, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle, XCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CHAT_SUGGESTIONS } from "@/constants/chat";
 
 export function MultiLLMComparison() {
-  const [selectedModelIds, setSelectedModelIds] = useState<string[]>([]);
-  const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
-  const [showSelector, setShowSelector] = useState(true);
-  const [expandedResponses, setExpandedResponses] = useState<Record<string, boolean>>({});
-  const { responses, isLoading, sendMessage, clearResponses, error } = useMultiLLM();
+      const [selectedModelIds, setSelectedModelIds] = useState<string[]>([]);
+      const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
+      const [showSelector, setShowSelector] = useState(true);
+      const [expandedResponses, setExpandedResponses] = useState<Record<string, boolean>>({});
+      const [showPrompts, setShowPrompts] = useState(true);
+      const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+      const { responses, isLoading, sendMessage, clearResponses, error } = useMultiLLM();
 
   useEffect(() => {
     getAllAvailableModels().then(setAvailableModels);
@@ -73,14 +74,16 @@ export function MultiLLMComparison() {
     }));
   };
 
-  const handleSuggestionClick = (suggestion: string) => {
-    handleSend(suggestion);
-  };
+      const handleSuggestionClick = (suggestion: string) => {
+        handleSend(suggestion);
+        // Collapse all categories after selection
+        setExpandedCategory(null);
+      };
 
   const MAX_PREVIEW_LENGTH = 500;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       {showSelector && (
         <>
           <div className="p-4 border-b border-[#2d3237]">
@@ -90,31 +93,89 @@ export function MultiLLMComparison() {
             />
           </div>
           {selectedModelIds.length > 0 && (
-            <div className="px-4 pb-4 border-b border-[#2d3237] pt-4 space-y-3">
-              <p className="text-xs font-semibold text-[#34c759] uppercase tracking-wider flex items-center gap-2">
-                <span className="h-1 w-1 rounded-full bg-[#34c759]"></span>
-                Try These Prompts
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {CHAT_SUGGESTIONS.slice(0, 4).map((suggestion, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleSuggestionClick(suggestion.text)}
-                    disabled={isLoading}
-                    className="px-3 py-2 text-xs sm:text-sm rounded-md border border-[#373d41] bg-[#23272c] hover:bg-[#2d3237] hover:border-[#34c759] hover:text-[#34c759] text-[#dcdcdc] transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap font-medium"
-                  >
-                    {suggestion.text}
-                  </button>
-                ))}
+            <div className="px-4 pb-2 border-b border-[#2d3237] bg-gradient-to-b from-[#1a1e23] to-[#141820]">
+              <div className="w-full flex items-center py-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-1.5 w-1.5 rounded-full bg-[#34c759] animate-pulse"></div>
+                  <p className="text-xs font-bold text-[#34c759] uppercase tracking-widest">
+                    Try These Prompts
+                  </p>
+                </div>
               </div>
+              
+              <div className="pb-3 space-y-3">
+                  {/* Market & Analysis (combined stock prices and analysis) */}
+                  <div className="space-y-1.5">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedCategory(expandedCategory === "market" ? null : "market");
+                      }}
+                      className="flex items-center justify-between w-full text-left px-2 py-1.5 rounded-md hover:bg-[#23272c] transition-colors cursor-pointer"
+                    >
+                      <p className="text-xs font-semibold text-[#9ca3af] uppercase tracking-wide">Market & Analysis</p>
+                      {expandedCategory === "market" ? (
+                        <ChevronUp className="h-3 w-3 text-[#9ca3af]" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3 text-[#9ca3af]" />
+                      )}
+                    </button>
+                    {expandedCategory === "market" && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {CHAT_SUGGESTIONS.filter(s => s.category === "market").map((suggestion, index) => (
+                          <button
+                            key={index}
+                            onClick={() => handleSuggestionClick(suggestion.text)}
+                            disabled={isLoading}
+                            className="px-2.5 py-1.5 text-xs rounded-md border border-[#373d41] bg-[#23272c] hover:bg-[#2d3237] hover:border-[#34c759] hover:text-[#34c759] text-[#dcdcdc] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                          >
+                            {suggestion.text}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Setup & Education */}
+                  <div className="space-y-1.5">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedCategory(expandedCategory === "setup" ? null : "setup");
+                      }}
+                      className="flex items-center justify-between w-full text-left px-2 py-1.5 rounded-md hover:bg-[#23272c] transition-colors cursor-pointer"
+                    >
+                      <p className="text-xs font-semibold text-[#9ca3af] uppercase tracking-wide">Setup & Education</p>
+                      {expandedCategory === "setup" ? (
+                        <ChevronUp className="h-3 w-3 text-[#9ca3af]" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3 text-[#9ca3af]" />
+                      )}
+                    </button>
+                    {expandedCategory === "setup" && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {CHAT_SUGGESTIONS.filter(s => s.category === "setup").map((suggestion, index) => (
+                          <button
+                            key={index}
+                            onClick={() => handleSuggestionClick(suggestion.text)}
+                            disabled={isLoading}
+                            className="px-2.5 py-1.5 text-xs rounded-md border border-[#373d41] bg-[#23272c] hover:bg-[#2d3237] hover:border-[#34c759] hover:text-[#34c759] text-[#dcdcdc] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                          >
+                            {suggestion.text}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
             </div>
           )}
         </>
       )}
 
       {!showSelector && (
-        <div className="flex-1 overflow-hidden flex flex-col">
-          <ScrollArea className="flex-1 p-4">
+        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+          <div className="flex-1 overflow-y-auto p-4">
             <div className="space-y-4">
               {selectedModelIds.map((modelId) => {
                 const modelInfo = availableModels.find((m) => m.id === modelId);
@@ -225,25 +286,83 @@ export function MultiLLMComparison() {
                 </div>
               </div>
             )}
-          </ScrollArea>
+          </div>
           {showSuggestions && (
-            <div className="px-4 pb-4 border-t border-[#2d3237] pt-4 space-y-3">
-              <p className="text-xs font-semibold text-[#34c759] uppercase tracking-wider flex items-center gap-2">
-                <span className="h-1 w-1 rounded-full bg-[#34c759]"></span>
-                Try These Prompts
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {CHAT_SUGGESTIONS.slice(0, 4).map((suggestion, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleSuggestionClick(suggestion.text)}
-                    disabled={isLoading}
-                    className="px-3 py-2 text-xs sm:text-sm rounded-md border border-[#373d41] bg-[#23272c] hover:bg-[#2d3237] hover:border-[#34c759] hover:text-[#34c759] text-[#dcdcdc] transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap font-medium"
-                  >
-                    {suggestion.text}
-                  </button>
-                ))}
+            <div className="px-4 pb-2 border-t border-[#2d3237] bg-gradient-to-b from-[#141820] to-[#1a1e23]">
+              <div className="w-full flex items-center py-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-1.5 w-1.5 rounded-full bg-[#34c759] animate-pulse"></div>
+                  <p className="text-xs font-bold text-[#34c759] uppercase tracking-widest">
+                    Try These Prompts
+                  </p>
+                </div>
               </div>
+              
+              <div className="pb-3 space-y-3">
+                  {/* Market & Analysis (combined stock prices and analysis) */}
+                  <div className="space-y-1.5">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedCategory(expandedCategory === "market" ? null : "market");
+                      }}
+                      className="flex items-center justify-between w-full text-left px-2 py-1.5 rounded-md hover:bg-[#23272c] transition-colors cursor-pointer"
+                    >
+                      <p className="text-xs font-semibold text-[#9ca3af] uppercase tracking-wide">Market & Analysis</p>
+                      {expandedCategory === "market" ? (
+                        <ChevronUp className="h-3 w-3 text-[#9ca3af]" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3 text-[#9ca3af]" />
+                      )}
+                    </button>
+                    {expandedCategory === "market" && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {CHAT_SUGGESTIONS.filter(s => s.category === "market").map((suggestion, index) => (
+                          <button
+                            key={index}
+                            onClick={() => handleSuggestionClick(suggestion.text)}
+                            disabled={isLoading}
+                            className="px-2.5 py-1.5 text-xs rounded-md border border-[#373d41] bg-[#23272c] hover:bg-[#2d3237] hover:border-[#34c759] hover:text-[#34c759] text-[#dcdcdc] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                          >
+                            {suggestion.text}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Setup & Education */}
+                  <div className="space-y-1.5">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedCategory(expandedCategory === "setup" ? null : "setup");
+                      }}
+                      className="flex items-center justify-between w-full text-left px-2 py-1.5 rounded-md hover:bg-[#23272c] transition-colors cursor-pointer"
+                    >
+                      <p className="text-xs font-semibold text-[#9ca3af] uppercase tracking-wide">Setup & Education</p>
+                      {expandedCategory === "setup" ? (
+                        <ChevronUp className="h-3 w-3 text-[#9ca3af]" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3 text-[#9ca3af]" />
+                      )}
+                    </button>
+                    {expandedCategory === "setup" && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {CHAT_SUGGESTIONS.filter(s => s.category === "setup").map((suggestion, index) => (
+                          <button
+                            key={index}
+                            onClick={() => handleSuggestionClick(suggestion.text)}
+                            disabled={isLoading}
+                            className="px-2.5 py-1.5 text-xs rounded-md border border-[#373d41] bg-[#23272c] hover:bg-[#2d3237] hover:border-[#34c759] hover:text-[#34c759] text-[#dcdcdc] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                          >
+                            {suggestion.text}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
             </div>
           )}
         </div>

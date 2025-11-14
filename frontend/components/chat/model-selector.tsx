@@ -136,22 +136,40 @@ export function ModelSelector({
               <SelectValue placeholder="Select a model to add..." className="text-[#dcdcdc]" />
             </SelectTrigger>
             <SelectContent className="border-[#2d3237] bg-[#1a1e23] text-[#dcdcdc]">
-              {getAvailableOptions().map((model) => (
-                <SelectItem
-                  key={model.id}
-                  value={model.id}
-                  className="text-[#dcdcdc] focus:bg-[#23272c] focus:text-[#34c759] hover:bg-[#23272c] hover:text-[#34c759] cursor-pointer"
-                >
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-[#9ca3af]">{model.providerName}</span>
-                      <span className="text-xs text-[#9ca3af]">•</span>
-                      <span>{model.model}</span>
+              {getAvailableOptions().map((model) => {
+                // Determine color based on cost tier
+                const getCostColor = (cost: string) => {
+                  if (cost === "$") {
+                    return "text-[#34c759]"; // Green for cheap
+                  } else if (cost === "$$") {
+                    return "text-[#ff9500]"; // Orange for moderate
+                  } else if (cost === "$$$") {
+                    return "text-[#ff3b30]"; // Red for expensive
+                  } else if (cost === "$$$$") {
+                    return "text-[#af52de]"; // Purple for premium
+                  }
+                  return "text-[#9ca3af]"; // Default gray
+                };
+
+                const costColor = getCostColor(model.cost);
+                
+                return (
+                  <SelectItem
+                    key={model.id}
+                    value={model.id}
+                    className="text-[#dcdcdc] focus:bg-[#23272c] focus:text-[#34c759] hover:bg-[#23272c] hover:text-[#34c759] cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-[#9ca3af]">{model.providerName}</span>
+                        <span className="text-xs text-[#9ca3af]">•</span>
+                        <span>{model.model}</span>
+                      </div>
+                      <span className={`ml-2 ${costColor} text-xs font-semibold`}>{model.cost}</span>
                     </div>
-                    <span className="ml-2 text-[#9ca3af] text-xs">{model.cost}</span>
-                  </div>
-                </SelectItem>
-              ))}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         </div>

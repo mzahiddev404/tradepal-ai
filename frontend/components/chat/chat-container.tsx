@@ -27,7 +27,7 @@ import { MultiLLMComparison } from "./multi-llm-comparison";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useChat } from "@/hooks/useChat";
-import { CHAT_SUGGESTIONS } from "@/constants/chat";
+import { STANDARD_CHAT_SUGGESTIONS } from "@/constants/chat";
 
 type ChatMode = "standard" | "multi-llm";
 
@@ -91,7 +91,7 @@ export function ChatContainer({
             <ChatInput
               onSend={sendMessage}
               disabled={isLoading}
-              suggestions={messages.length === 0 ? CHAT_SUGGESTIONS.map((s) => s.text) : undefined}
+              suggestions={messages.length === 0 ? STANDARD_CHAT_SUGGESTIONS.map((s) => s.text) : undefined}
             />
           </div>
         </>

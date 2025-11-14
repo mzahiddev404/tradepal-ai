@@ -3,7 +3,7 @@
  * Refactored with better error handling
  */
 
-import { apiRequest } from "./api-client";
+import { apiRequest, ApiError } from "./api-client";
 import { API_URL } from "./constants";
 
 export interface StockQuote {
@@ -126,7 +126,19 @@ export async function getOptionsChain(
   url.searchParams.append("min_premium", minPremium.toString());
   url.searchParams.append("show_unusual_only", showUnusualOnly.toString());
 
-  return apiRequest<OptionsChain>(url.pathname + url.search);
+  try {
+    return await apiRequest<OptionsChain>(url.pathname + url.search);
+  } catch (error) {
+    // Provide more context for options-specific errors
+    if (error instanceof ApiError) {
+      throw new ApiError(
+        `Failed to fetch options data: ${error.message}`,
+        error.status,
+        error.statusText
+      );
+    }
+    throw error;
+  }
 }
 
 /**

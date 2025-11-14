@@ -8,7 +8,7 @@ interface RequestOptions extends RequestInit {
   retryDelay?: number;
 }
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
@@ -73,8 +73,14 @@ export async function apiRequest<T>(
     if (!response.ok) {
       let errorMessage = `API error: ${response.status}`;
       try {
-        const errorData = await response.json();
-        errorMessage = errorData.detail || errorData.error || errorMessage;
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.error || errorMessage;
+        } else {
+          const text = await response.text();
+          errorMessage = text || response.statusText || errorMessage;
+        }
       } catch {
         errorMessage = response.statusText || errorMessage;
       }
@@ -82,7 +88,43 @@ export async function apiRequest<T>(
       throw new ApiError(errorMessage, response.status, response.statusText);
     }
 
-    const data = await response.json();
+    // Check if response has content before parsing JSON
+    const contentType = response.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      const text = await response.text();
+      if (!text || text.trim().length === 0) {
+        throw new ApiError(
+          "Empty response from server",
+          response.status,
+          "Empty Response"
+        );
+      }
+      throw new ApiError(
+        `Expected JSON but received ${contentType || "unknown"}`,
+        response.status,
+        "Invalid Content Type"
+      );
+    }
+
+    const text = await response.text();
+    if (!text || text.trim().length === 0) {
+      throw new ApiError(
+        "Empty response from server",
+        response.status,
+        "Empty Response"
+      );
+    }
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseError) {
+      throw new ApiError(
+        `Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : "Unknown error"}`,
+        response.status,
+        "JSON Parse Error"
+      );
+    }
 
     // Check if response contains an error field
     if (data.error) {

@@ -13,14 +13,100 @@ const SYSTEM_PROMPT = `You are a stock market and investing AI assistant. Your e
 - Market trends and technical analysis
 - Risk assessment and portfolio management
 - Investment education and best practices
+- Trading platform setup and account management
+- Trading rules and regulations (PDT rule, etc.)
 
-When users ask about stock prices or market data, provide responses in this specific format:
+IMPORTANT: Users may refer to stocks by either their company name (e.g., "Tesla", "Apple") or stock symbol (e.g., "TSLA", "AAPL"). Treat them interchangeably:
+- Tesla = TSLA
+- Apple = AAPL
+- Microsoft = MSFT
+- Google/Alphabet = GOOGL
+- Amazon = AMZN
+- Meta/Facebook = META
+- Netflix = NFLX
+- Disney = DIS
+- And other major companies
 
-"SYMBOL \${price} at {time}, testing resistance near \${resistance} (\${range}). Momentum favors {bulls/bears}, but volatility remains {level}; next catalysts include {catalysts}."
-
-Example: "TSLA \$245.50 at 3:15 PM ET, testing resistance near \$250 (\$240-\$255). Momentum favors bulls, but volatility remains high; next catalysts include Q4 earnings and delivery numbers."
+For stock price queries and market analysis questions, provide detailed, helpful answers. For general questions about trading platforms, setup, education, or rules, provide clear, informative responses without forcing a specific format.
 
 Always use real-time data when available. Be concise, direct, and actionable.`;
+
+// Company name to symbol mapping
+const COMPANY_TO_SYMBOL: Record<string, string> = {
+  'tesla': 'TSLA',
+  'apple': 'AAPL',
+  'microsoft': 'MSFT',
+  'google': 'GOOGL',
+  'alphabet': 'GOOGL',
+  'amazon': 'AMZN',
+  'meta': 'META',
+  'facebook': 'META',
+  'netflix': 'NFLX',
+  'disney': 'DIS',
+  'jpmorgan': 'JPM',
+  'jpm': 'JPM',
+  'bank of america': 'BAC',
+  'bofa': 'BAC',
+  'walmart': 'WMT',
+  'visa': 'V',
+  'mastercard': 'MA',
+  'home depot': 'HD',
+  'procter & gamble': 'PG',
+  'pg': 'PG',
+  'johnson & johnson': 'JNJ',
+  'jnj': 'JNJ',
+  'unitedhealth': 'UNH',
+  'unh': 'UNH',
+  'exxon': 'XOM',
+  'chevron': 'CVX',
+  'nvidia': 'NVDA',
+  'spy': 'SPY',
+  'spdr s&p 500': 'SPY',
+  's&p 500': 'SPY',
+};
+
+// Function to normalize and find stock symbol from user input
+function findStockSymbol(input: string): string | null {
+  if (!input || typeof input !== 'string') {
+    return null;
+  }
+  
+  const lowerInput = input.toLowerCase();
+  
+  // First check direct symbol match (uppercase letters, 1-5 chars)
+  const symbolMatch = input.match(/\b([A-Z]{1,5})\b/);
+  if (symbolMatch && symbolMatch[1].length >= 1 && symbolMatch[1].length <= 5) {
+    const potentialSymbol = symbolMatch[1].toUpperCase();
+    // Verify it's a known symbol or looks like one
+    if (Object.values(COMPANY_TO_SYMBOL).includes(potentialSymbol) || 
+        potentialSymbol.length >= 1 && potentialSymbol.length <= 5) {
+      return potentialSymbol;
+    }
+  }
+  
+  // Check company name mapping (exact matches first)
+  for (const [companyName, symbol] of Object.entries(COMPANY_TO_SYMBOL)) {
+    // Exact word match
+    if (lowerInput === companyName || lowerInput.includes(' ' + companyName + ' ') || 
+        lowerInput.startsWith(companyName + ' ') || lowerInput.endsWith(' ' + companyName)) {
+      return symbol;
+    }
+    // Partial match
+    if (lowerInput.includes(companyName)) {
+      return symbol;
+    }
+  }
+  
+  // Check individual words
+  const words = lowerInput.split(/\s+/);
+  for (const word of words) {
+    if (COMPANY_TO_SYMBOL[word]) {
+      return COMPANY_TO_SYMBOL[word];
+    }
+  }
+  
+  return null;
+}
 
 // Stock price function using free Yahoo Finance API (no API key required)
 async function getStockPrice(symbol: string) {
@@ -28,6 +114,8 @@ async function getStockPrice(symbol: string) {
     const upperSymbol = symbol.toUpperCase();
     // Use Yahoo Finance public API endpoint
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${upperSymbol}?interval=1d&range=1d`;
+    
+    console.log(`[getStockPrice] Fetching real-time data for ${upperSymbol} from Yahoo Finance...`);
     
     const response = await fetch(url, {
       headers: {
@@ -49,11 +137,65 @@ async function getStockPrice(symbol: string) {
     const meta = result.meta;
     const quote = result.indicators?.quote?.[0];
     
-    // Get current price (use regularMarketPrice or last close)
-    const currentPrice = meta.regularMarketPrice || meta.previousClose || 0;
-    const previousClose = meta.previousClose || currentPrice;
+    // Get current price - prioritize regularMarketPrice, fallback to previousClose
+    // During market hours: use regularMarketPrice
+    // After hours: use previousClose
+    let currentPrice = meta.regularMarketPrice;
+    if (!currentPrice || currentPrice === 0) {
+      currentPrice = meta.previousClose;
+    }
+    if (!currentPrice || currentPrice === 0) {
+      currentPrice = meta.chartPreviousClose;
+    }
+    if (!currentPrice || currentPrice === 0) {
+      // Try to get from quote data
+      const quoteData = quote;
+      if (quoteData && quoteData.close && quoteData.close.length > 0) {
+        const lastClose = quoteData.close[quoteData.close.length - 1];
+        if (lastClose && lastClose > 0) {
+          currentPrice = lastClose;
+        }
+      }
+    }
+    
+    // Validate price is reasonable (not 0 and not absurdly high)
+    if (!currentPrice || currentPrice === 0) {
+      throw new Error(`No valid price data found for ${upperSymbol}`);
+    }
+    
+    // Sanity check: if price seems wrong (e.g., TSLA > 1000), use previousClose
+    if (upperSymbol === 'TSLA' && currentPrice > 1000) {
+      console.warn(`[getStockPrice] TSLA price ${currentPrice} seems incorrect, using previousClose ${meta.previousClose}`);
+      currentPrice = meta.previousClose || meta.chartPreviousClose || currentPrice;
+    }
+    
+    const previousClose = meta.previousClose || meta.chartPreviousClose || currentPrice;
     const change = currentPrice - previousClose;
     const changePercent = previousClose !== 0 ? (change / previousClose) * 100 : 0;
+    
+    // Get market time from API
+    const marketTime = meta.regularMarketTime ? new Date(meta.regularMarketTime * 1000) : new Date();
+    const dataTimestamp = marketTime.toISOString();
+    
+    // Validate we got real data
+    if (!currentPrice || currentPrice === 0) {
+      throw new Error(`Invalid price data received for ${upperSymbol}`);
+    }
+    
+    console.log(`[getStockPrice] ${upperSymbol} real-time data:`, {
+      price: currentPrice,
+      priceSource: meta.regularMarketPrice ? 'regularMarketPrice' : (meta.previousClose ? 'previousClose' : 'chartPreviousClose'),
+      change: change,
+      changePercent: changePercent.toFixed(2) + '%',
+      marketState: meta.marketState,
+      marketTime: marketTime.toLocaleString('en-US', { timeZone: 'America/New_York' }),
+      dataSource: 'Yahoo Finance API',
+      rawMeta: {
+        regularMarketPrice: meta.regularMarketPrice,
+        previousClose: meta.previousClose,
+        chartPreviousClose: meta.chartPreviousClose,
+      }
+    });
     
     return {
       symbol: upperSymbol,
@@ -61,16 +203,19 @@ async function getStockPrice(symbol: string) {
       change: change,
       changePercent: changePercent,
       marketState: meta.marketState || 'UNKNOWN',
-      timestamp: new Date().toISOString(),
+      timestamp: dataTimestamp,
+      marketTime: marketTime,
       currency: meta.currency || 'USD',
       marketCap: meta.marketCap || null,
       volume: meta.regularMarketVolume || quote?.volume?.[0] || null,
       high: meta.regularMarketDayHigh || quote?.high?.[0] || null,
       low: meta.regularMarketDayLow || quote?.low?.[0] || null,
       open: meta.regularMarketOpen || quote?.open?.[0] || null,
+      dataSource: 'Yahoo Finance',
+      isRealTime: meta.marketState === 'REGULAR' || meta.marketState === 'PRE' || meta.marketState === 'POST',
     };
   } catch (error: any) {
-    console.error(`Error fetching stock price for ${symbol}:`, error);
+    console.error(`[getStockPrice] Error fetching stock price for ${symbol}:`, error);
     return { 
       error: `Failed to fetch price for ${symbol.toUpperCase()}. ${error.message || 'Please check the symbol is correct.'}`,
       symbol: symbol.toUpperCase()
@@ -178,53 +323,94 @@ export async function POST(request: NextRequest) {
           symbol: z.string().describe("Stock ticker symbol (e.g., TSLA, AAPL, SPY, MSFT)")
         });
 
-        // Check if prompt is asking for stock price
-        const stockSymbolMatch = prompt.match(/\b(TSLA|AAPL|SPY|MSFT|NVDA|GOOGL|AMZN|META|NFLX|DIS|JPM|BAC|WMT|V|MA|HD|PG|JNJ|UNH|XOM|CVX)\b/i);
-        const isStockPriceQuery = /\b(price|quote|current|latest|stock|trading|symbol|ticker|how much|what.*price|summarize|analyze)\b/i.test(prompt);
-        
-        // If it's a stock price query, fetch the data first and include it in the prompt
-        let enhancedPrompt = prompt;
-        if (isStockPriceQuery && stockSymbolMatch) {
-          const symbol = stockSymbolMatch[1].toUpperCase();
-          console.log(`[${provider}:${model}] Detected stock query for ${symbol}, fetching price...`);
-          try {
-            const priceData = await getStockPrice(symbol);
-            if (priceData.error) {
-              enhancedPrompt = `${prompt}\n\nNote: I encountered an error fetching the stock price: ${priceData.error}`;
+            // Check if prompt is asking for stock price or market analysis (not platform/setup questions)
+            const isStockPriceQuery = /\b(price|quote|current|latest|stock|trading|symbol|ticker|how much|what.*price|summarize|analyze|support|resistance|headlines|fed|macro|options|flow|put|call|ratio|insight|bullish|bearish|tsla|spy|aapl|msft|googl|amzn|meta|nflx|dis|tesla|apple|microsoft|google|amazon|netflix|disney)\b/i.test(prompt);
+            
+            // Check if it's a platform/setup/education question (should NOT use template format)
+            const isPlatformQuestion = /\b(how to|setup|account|robinhood|documents|pdt rule|get started|trading habits|compulsive|platform|broker|exchange)\b/i.test(prompt);
+            
+            // Try to find stock symbol from prompt (handles both symbols and company names)
+            const foundSymbol = findStockSymbol(prompt);
+            
+            console.log(`[${provider}:${model}] Prompt analysis:`, {
+              prompt: prompt.substring(0, 100),
+              isStockPriceQuery,
+              isPlatformQuestion,
+              foundSymbol,
+            });
+            
+            // If it's a stock price query (and NOT a platform question), fetch the data and use template format
+            let enhancedPrompt = prompt;
+            if (isStockPriceQuery && !isPlatformQuestion && foundSymbol) {
+              const symbol = foundSymbol.toUpperCase();
+              console.log(`[${provider}:${model}] Detected stock query for ${symbol}, fetching price and using template format...`);
+              try {
+                const priceData = await getStockPrice(symbol);
+                if (priceData.error) {
+                  enhancedPrompt = `${prompt}\n\nNote: I encountered an error fetching the stock price: ${priceData.error}`;
+                } else {
+                  const currentTime = new Date().toLocaleTimeString('en-US', { 
+                    timeZone: 'America/New_York', 
+                    hour: 'numeric', 
+                    minute: '2-digit',
+                    hour12: true 
+                  }) + ' ET';
+                  
+                  const price = (priceData.price || 0).toFixed(2);
+                  const change = (priceData.change || 0);
+                  const changePercent = (priceData.changePercent || 0);
+                  const high = priceData.high || priceData.price || 0;
+                  const low = priceData.low || priceData.price || 0;
+                  const range = `$${low.toFixed(2)}-$${high.toFixed(2)}`;
+                  const resistance = high.toFixed(2);
+                  const momentum = change >= 0 ? 'bulls' : 'bears';
+                  const volatility = Math.abs(changePercent) > 3 ? 'high' : Math.abs(changePercent) > 1.5 ? 'moderate' : 'low';
+                  
+                  // Use market time from API if available, otherwise use current time
+                  const displayTime = priceData.marketTime 
+                    ? priceData.marketTime.toLocaleTimeString('en-US', { 
+                        timeZone: 'America/New_York', 
+                        hour: 'numeric', 
+                        minute: '2-digit',
+                        hour12: true 
+                      }) + ' ET'
+                    : currentTime;
+                  
+                  const dataSourceNote = priceData.isRealTime 
+                    ? ' (Real-time data from Yahoo Finance)'
+                    : ' (Market data from Yahoo Finance)';
+                  
+                  // CRITICAL: Use EXACT price values from API - do not let model invent numbers
+                  // Use template format ONLY for stock queries
+                  enhancedPrompt = `${prompt}\n\nIMPORTANT: Use ONLY the exact market data provided below. Do NOT invent or estimate prices.\n\nCurrent market data for ${symbol}${dataSourceNote}:\n` +
+                    `- Price: $${price} (EXACT - use this exact value)\n` +
+                    `- Time: ${displayTime}\n` +
+                    `- Change: ${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%)\n` +
+                    `- Range: ${range}\n` +
+                    `- Resistance: $${resistance}\n` +
+                    `- High: $${high.toFixed(2)}\n` +
+                    `- Low: $${low.toFixed(2)}\n` +
+                    `- Volume: ${priceData.volume ? priceData.volume.toLocaleString() : 'N/A'}\n` +
+                    `- Market State: ${priceData.marketState || 'UNKNOWN'}\n` +
+                    `- Data Source: Yahoo Finance API (verified real-time)\n\n` +
+                    `CRITICAL INSTRUCTIONS:\n` +
+                    `1. Use EXACTLY $${price} as the price - do not change this number\n` +
+                    `2. Use EXACTLY ${displayTime} as the time\n` +
+                    `3. Use EXACTLY $${resistance} as the resistance level\n` +
+                    `4. Use EXACTLY ${range} as the range\n` +
+                    `5. Format your response EXACTLY as: "${symbol} $${price} at ${displayTime}, testing resistance near $${resistance} (${range}). Momentum favors ${momentum}, but volatility remains ${volatility}; next catalysts include {relevant catalysts based on the stock}."\n` +
+                    `6. Do NOT invent or estimate any price values - use only the exact numbers provided above.`;
+                }
+              } catch (e) {
+                console.error(`[${provider}:${model}] Error fetching stock price:`, e);
+              }
+            } else if (isStockPriceQuery && !isPlatformQuestion && !foundSymbol) {
+              // Stock query but no symbol found - still try to help but don't force template
+              console.log(`[${provider}:${model}] Stock query detected but no symbol found, answering normally`);
             } else {
-              const currentTime = new Date().toLocaleTimeString('en-US', { 
-                timeZone: 'America/New_York', 
-                hour: 'numeric', 
-                minute: '2-digit',
-                hour12: true 
-              }) + ' ET';
-              
-              const price = (priceData.price || 0).toFixed(2);
-              const change = (priceData.change || 0);
-              const changePercent = (priceData.changePercent || 0);
-              const high = priceData.high || priceData.price || 0;
-              const low = priceData.low || priceData.price || 0;
-              const range = `$${low.toFixed(2)}-$${high.toFixed(2)}`;
-              const resistance = high.toFixed(2);
-              const momentum = change >= 0 ? 'bulls' : 'bears';
-              const volatility = Math.abs(changePercent) > 3 ? 'high' : Math.abs(changePercent) > 1.5 ? 'moderate' : 'low';
-              
-              enhancedPrompt = `${prompt}\n\nCurrent market data for ${symbol}:\n` +
-                `- Price: $${price}\n` +
-                `- Time: ${currentTime}\n` +
-                `- Change: ${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%)\n` +
-                `- Range: ${range}\n` +
-                `- Resistance: $${resistance}\n` +
-                `- High: $${high.toFixed(2)}\n` +
-                `- Low: $${low.toFixed(2)}\n` +
-                `- Volume: ${priceData.volume ? priceData.volume.toLocaleString() : 'N/A'}\n` +
-                `- Market State: ${priceData.marketState || 'UNKNOWN'}\n\n` +
-                `Please format your response as: "${symbol} $${price} at ${currentTime}, testing resistance near $${resistance} (${range}). Momentum favors ${momentum}, but volatility remains ${volatility}; next catalysts include {relevant catalysts based on the stock}."`;
+              // Platform/setup/education questions - answer normally without template format
+              console.log(`[${provider}:${model}] Non-stock query detected, answering normally without template format`);
             }
-          } catch (e) {
-            console.error(`[${provider}:${model}] Error fetching stock price:`, e);
-          }
-        }
 
         const result = await generateText({
           model: languageModel,
@@ -244,8 +430,7 @@ export async function POST(request: NextRequest) {
           fullResultKeys: Object.keys(result),
         });
 
-        // generateText with tools should automatically handle tool execution and return final text
-        // If result.text is empty, check if we have tool calls/results
+        // generateText should return text response
         let responseText = result.text || "";
         
         // If no text but we have tool results, log them for debugging
@@ -253,12 +438,14 @@ export async function POST(request: NextRequest) {
           console.log(`[${provider}:${model}] No text but have tool results:`, JSON.stringify(result.toolResults, null, 2));
         }
         
+        // If still no text, check finish reason
         if (!responseText) {
           console.error(`[${provider}:${model}] No text content generated. Result:`, JSON.stringify({
             toolCalls: result.toolCalls,
             toolResults: result.toolResults,
             finishReason: result.finishReason,
             hasText: !!result.text,
+            text: result.text,
           }, null, 2));
           
           // Return error if no text is generated
@@ -267,10 +454,12 @@ export async function POST(request: NextRequest) {
             provider,
             model: model,
             content: "",
-            error: "No response generated. The model may have encountered an issue processing your request. Check server logs for details.",
+            error: `No response generated. Finish reason: ${result.finishReason || 'unknown'}. The model may have encountered an issue processing your request.`,
             completed: false,
           };
         }
+        
+        console.log(`[${provider}:${model}] Successfully generated response (${responseText.length} chars)`);
 
         return {
           modelId,
