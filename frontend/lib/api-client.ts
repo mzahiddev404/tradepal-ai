@@ -95,13 +95,14 @@ export async function apiRequest<T>(
       throw error;
     }
 
-    if (error instanceof TypeError && error.message.includes("fetch")) {
-      throw new ApiError(
-        "Network error: Could not connect to server",
-        0,
-        "Network Error"
-      );
-    }
+        if (error instanceof TypeError && error.message.includes("fetch")) {
+          // Provide helpful error message for Standard Chat when backend is not running
+          throw new ApiError(
+            "Backend server is not running. Please start the backend server:\n\ncd tradepal-ai/backend\npython -m uvicorn main:app --reload --host 0.0.0.0 --port 8000\n\nOr use Compare Chat which works without the backend.",
+            0,
+            "Network Error"
+          );
+        }
 
     throw new ApiError(
       error instanceof Error ? error.message : "Unknown error occurred",
