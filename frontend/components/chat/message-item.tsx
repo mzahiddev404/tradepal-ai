@@ -17,40 +17,52 @@ export function MessageItem({ message }: MessageItemProps) {
   return (
     <div
       className={cn(
-        "flex w-full mb-3",
+        "flex w-full mb-4 animate-in fade-in slide-in-from-bottom-2",
         isUser ? "justify-end" : "justify-start"
       )}
     >
       <div
         className={cn(
-          "max-w-[85%] sm:max-w-[75%] rounded-md px-4 py-3 border-l-4",
+          "max-w-[85%] sm:max-w-[80%] pl-4 pr-4 py-2 relative",
           isUser
-            ? "bg-gradient-to-r from-[#34c759]/20 to-[#28a745]/10 border-[#34c759] text-[#dcdcdc] shadow-md"
+            ? "border-r-2 border-[#34c759] bg-[rgba(52,199,89,0.05)] text-right"
             : isError
-            ? "bg-[#2d1f1f] border-[#ff3b30] text-[#ff6b6b]"
-            : "bg-[#23272c] border-[#007aff] text-[#dcdcdc] shadow-sm"
+            ? "border-l-2 border-[#ff3b30] bg-[rgba(255,59,48,0.05)]"
+            : "border-l-2 border-[#007aff] bg-[rgba(0,122,255,0.05)]"
         )}
         role={isError ? "alert" : undefined}
       >
         {!isUser && (
-          <div className="flex items-center gap-2 mb-2">
-            <div className="h-2 w-2 rounded-full bg-[#34c759]"></div>
-            <span className="text-xs font-semibold text-[#34c759] uppercase tracking-wide">TradePal AI</span>
+          <div className="flex items-center gap-2 mb-1 opacity-80">
+            <span className="text-[10px] font-mono font-semibold text-[#007aff] uppercase tracking-wider">
+              SYSTEM_RESPONSE
+            </span>
           </div>
         )}
-        <p className="text-sm sm:text-base whitespace-pre-wrap break-words leading-relaxed">
+        {isUser && (
+          <div className="flex items-center justify-end gap-2 mb-1 opacity-80">
+            <span className="text-[10px] font-mono font-semibold text-[#34c759] uppercase tracking-wider">
+              USER_INPUT
+            </span>
+          </div>
+        )}
+        
+        <div className={cn(
+          "text-sm leading-relaxed whitespace-pre-wrap break-words",
+          isUser ? "text-gray-200" : "text-gray-300"
+        )}>
           {message.content}
-        </p>
+        </div>
+        
         <p
           className={cn(
-            "text-xs mt-2 trading-number opacity-70",
-            isUser ? "text-right text-[#969696]" : "text-left text-[#6a6a6a]"
+            "text-[10px] mt-2 font-mono opacity-50",
+            isUser ? "text-[#34c759]" : "text-[#007aff]"
           )}
         >
-          {formatMessageTime(message.timestamp)}
+          T+{formatMessageTime(message.timestamp)}
         </p>
       </div>
     </div>
   );
 }
-

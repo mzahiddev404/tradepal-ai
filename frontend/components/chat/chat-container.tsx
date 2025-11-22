@@ -74,24 +74,24 @@ export function ChatContainer({
   };
 
   return (
-    <Card className="flex h-full w-full flex-col overflow-hidden trading-panel border border-[#2d3237]/50 bg-[#1a1e23]/95 backdrop-blur-sm shadow-2xl">
+    <Card className="flex h-full w-full flex-col overflow-hidden trading-panel">
       {showUpload ? (
         <UploadView onReturnToChat={handleReturnToChat} />
       ) : chatMode === "multi-llm" ? (
         <MultiLLMComparison />
       ) : (
         <>
-          <div ref={scrollAreaRef} className="flex-1 overflow-hidden bg-gradient-to-b from-[#1a1e23] to-[#141820]">
+          <div ref={scrollAreaRef} className="flex-1 overflow-hidden bg-transparent">
             <ScrollArea className="h-full p-4 sm:p-6 lg:p-8">
               <MessageList messages={messages} isLoading={isLoading} />
             </ScrollArea>
           </div>
 
-          <div className="border-t border-[#2d3237]/50 bg-[#1a1e23]/95 backdrop-blur-sm p-4 sm:p-6">
+          <div className="border-t border-white/5 bg-black/20 p-4 sm:p-6 backdrop-blur-md">
             <ChatInput
               onSend={sendMessage}
               disabled={isLoading}
-              suggestions={messages.length === 0 ? STANDARD_CHAT_SUGGESTIONS.map((s) => s.text) : undefined}
+              suggestions={STANDARD_CHAT_SUGGESTIONS.map((s) => s.text)}
             />
           </div>
         </>
@@ -99,4 +99,3 @@ export function ChatContainer({
     </Card>
   );
 }
-

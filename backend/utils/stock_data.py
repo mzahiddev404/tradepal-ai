@@ -36,6 +36,33 @@ class StockDataService:
         self.use_finnhub = self.finnhub_api_key is not None and len(self.finnhub_api_key) > 0
         self.alpha_vantage_api_key = settings.alpha_vantage_api_key
         self.use_alpha_vantage = self.alpha_vantage_api_key is not None and len(self.alpha_vantage_api_key) > 0
+        
+        # API Usage Tracking
+        self.api_usage = {
+            "alpha_vantage": {"count": 0, "limit": 25, "reset": datetime.now().date()},
+            "finnhub": {"count": 0, "limit": 60, "reset": datetime.now().date()}, # Per minute actually, but simplified
+            "yfinance": {"count": 0, "limit": "Unlimited", "reset": datetime.now().date()}
+        }
+
+    def _check_usage_reset(self):
+        """Check if usage counters need reset."""
+        today = datetime.now().date()
+        if self.api_usage["alpha_vantage"]["reset"] != today:
+            self.api_usage["alpha_vantage"]["count"] = 0
+            self.api_usage["alpha_vantage"]["reset"] = today
+            
+        if self.api_usage["finnhub"]["reset"] != today:
+            self.api_usage["finnhub"]["count"] = 0
+            self.api_usage["finnhub"]["reset"] = today
+
+        if self.api_usage["yfinance"]["reset"] != today:
+            self.api_usage["yfinance"]["count"] = 0
+            self.api_usage["yfinance"]["reset"] = today
+
+    def get_api_usage(self) -> Dict:
+        """Get current API usage statistics."""
+        self._check_usage_reset()
+        return self.api_usage
     
     def _get_finnhub_quote(self, symbol: str) -> Optional[Dict]:
         """
@@ -51,6 +78,9 @@ class StockDataService:
             return None
         
         try:
+            self._check_usage_reset()
+            self.api_usage["finnhub"]["count"] += 1
+
             # Get real-time quote
             url = "https://finnhub.io/api/v1/quote"
             params = {
@@ -129,6 +159,14 @@ class StockDataService:
             return None
         
         try:
+            self._check_usage_reset()
+            # Check if we hit the limit
+            if self.api_usage["alpha_vantage"]["count"] >= self.api_usage["alpha_vantage"]["limit"]:
+                logger.warning("Alpha Vantage daily limit reached locally.")
+                return None
+
+            self.api_usage["alpha_vantage"]["count"] += 1
+
             url = "https://www.alphavantage.co/query"
             params = {
                 "function": "GLOBAL_QUOTE",
@@ -147,6 +185,8 @@ class StockDataService:
             
             if "Note" in data:
                 logger.warning(f"Alpha Vantage rate limit: {data['Note']}")
+                # We hit the limit
+                self.api_usage["alpha_vantage"]["count"] = self.api_usage["alpha_vantage"]["limit"]
                 return None
             
             quote_data = data.get("Global Quote", {})
@@ -230,6 +270,9 @@ class StockDataService:
         
         # Fallback to yfinance
         try:
+            self._check_usage_reset()
+            self.api_usage["yfinance"]["count"] += 1
+
             ticker = yf.Ticker(symbol)
             
             # Try multiple methods to get the most current price

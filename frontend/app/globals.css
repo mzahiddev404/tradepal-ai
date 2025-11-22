@@ -226,18 +226,81 @@
     will-change: transform;
   }
   
-  /* Trading platform panel effect */
+  /* NEW: Glass Terminal Utilities & 10/10 Polish */
+  .bg-grid-subtle {
+    background-size: 40px 40px;
+    background-image: 
+      linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  }
+
+  /* Scanlines effect for retro terminal feel */
+  .scanlines {
+    background: linear-gradient(
+      to bottom,
+      rgba(255,255,255,0),
+      rgba(255,255,255,0) 50%,
+      rgba(0,0,0,0.1) 50%,
+      rgba(0,0,0,0.1)
+    );
+    background-size: 100% 4px;
+    pointer-events: none;
+  }
+
+  .glass-panel {
+    background: rgba(22, 26, 30, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .glow-text {
+    text-shadow: 0 0 20px rgba(52, 199, 89, 0.4); /* Green glow */
+  }
+  
+  .glow-border-green {
+    box-shadow: 0 0 15px rgba(52, 199, 89, 0.15);
+  }
+
+  .glow-border-blue {
+    box-shadow: 0 0 15px rgba(0, 122, 255, 0.15);
+  }
+  
+  .terminal-text {
+    font-family: var(--font-mono);
+  }
+
+  /* Custom Scrollbar for that premium feel */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  /* Trading platform panel effect - UPDATED for Glass Look */
   .trading-panel {
-    background: rgb(26 30 35);
-    border: 1px solid rgb(45 50 55);
-    box-shadow: 
-      0 2px 4px rgba(0, 0, 0, 0.4),
-      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    background: rgba(22, 26, 30, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3); /* Deep shadow for depth */
   }
   
   .trading-panel-header {
-    background: linear-gradient(to bottom, rgb(35 39 44), rgb(26 30 35));
-    border-bottom: 1px solid rgb(45 50 55);
+    background: transparent;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     padding: 0.75rem 1rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -247,28 +310,34 @@
   
   /* Button styles - trading platform */
   .btn-trading {
-    background: rgb(40 44 50);
-    border: 1px solid rgb(55 60 65);
+    background: rgba(22, 26, 30, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     color: rgb(220 220 220);
     padding: 0.5rem 1rem;
     font-weight: 500;
-    transition: all 0.15s;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
   
   .btn-trading:hover {
-    background: rgb(50 54 60);
-    border-color: rgb(65 70 75);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
   }
   
   .btn-trading-primary {
-    background: rgb(0 122 255);
-    border: 1px solid rgb(0 122 255);
+    background: linear-gradient(135deg, rgba(0,122,255,0.9), rgba(0,100,220,0.9));
+    border: 1px solid rgba(0, 122, 255, 0.5);
     color: white;
+    box-shadow: 0 0 15px rgba(0, 122, 255, 0.3);
   }
   
   .btn-trading-primary:hover {
-    background: rgb(0 100 220);
-    border-color: rgb(0 100 220);
+    background: linear-gradient(135deg, rgba(0,132,255,1), rgba(0,110,230,1));
+    border-color: rgba(0, 122, 255, 0.8);
+    box-shadow: 0 0 25px rgba(0, 122, 255, 0.5);
+    transform: translateY(-1px);
   }
   
   /* Enhanced shadows for depth */

@@ -83,3 +83,6 @@ class TestChatAPI:
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
+
+
+

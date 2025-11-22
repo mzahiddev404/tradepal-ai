@@ -42,9 +42,12 @@ export const MODEL_COSTS: Record<string, string> = {
   "claude-3-opus": "$$$$",
   
   // Google
-  "gemini-pro": "$",
-  "gemini-1.5-flash": "$",
-  "gemini-1.5-pro": "$$",
+  "gemini-3-pro": "$$$$",
+  "gemini-2.5-pro": "$$$",
+  "gemini-2.5-flash": "$",
+  "gemini-2.5-flash-lite": "$",
+  "gemini-2.0-flash": "$",
+  "gemini-2.0-flash-lite": "$",
   
   // OpenRouter (approximate based on underlying models)
   "openai/gpt-4-turbo": "$$$",
@@ -79,9 +82,16 @@ export const PROVIDER_CONFIGS: Record<ProviderType, ProviderConfig> = {
   google: {
     id: "google",
     name: "Google Gemini",
-    models: ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro"],
-    defaultModel: "gemini-1.5-pro",
-    description: "Gemini 1.5 Pro and Flash models",
+    models: [
+      "gemini-3-pro",
+      "gemini-2.5-pro",
+      "gemini-2.5-flash",
+      "gemini-2.5-flash-lite",
+      "gemini-2.0-flash",
+      "gemini-2.0-flash-lite"
+    ],
+    defaultModel: "gemini-3-pro",
+    description: "Google's state-of-the-art Gemini models",
   },
   openrouter: {
     id: "openrouter",

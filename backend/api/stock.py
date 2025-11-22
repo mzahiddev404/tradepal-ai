@@ -2,7 +2,7 @@
 Stock market data API endpoints.
 """
 from fastapi import APIRouter, HTTPException, Query
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime
 import logging
 from models.stock import StockQuoteResponse, OptionsChainResponse, MarketOverviewResponse, HistoricalPriceResponse, HistoricalPriceRangeResponse, EventStudyResponse
@@ -410,3 +410,13 @@ async def get_event_study(
             status_code=500,
             detail=f"Error running event study: {str(e)}"
         )
+
+@router.get("/limits")
+async def get_api_limits():
+    """
+    Get current API usage and limits.
+    
+    Returns:
+        Dictionary with API usage statistics
+    """
+    return stock_data_service.get_api_usage()

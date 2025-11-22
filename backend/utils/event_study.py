@@ -77,7 +77,7 @@ class EventStudyService:
             days_diff = (end_dt - start_dt).days
             
             # Use period parameter for shorter ranges
-            if days_diff <= 365:
+            if days_diff <= 36500: # Try period method for most ranges
                 ticker_obj = yf.Ticker(ticker)
                 # Try period-based fetch
                 if days_diff <= 5:
@@ -88,8 +88,16 @@ class EventStudyService:
                     period = '3mo'
                 elif days_diff <= 180:
                     period = '6mo'
-                else:
+                elif days_diff <= 365:
                     period = '1y'
+                elif days_diff <= 730:
+                    period = '2y'
+                elif days_diff <= 1825:
+                    period = '5y'
+                elif days_diff <= 3650:
+                    period = '10y'
+                else:
+                    period = 'max'
                 
                 df = ticker_obj.history(period=period)
                 if not df.empty and len(df) > 0:
@@ -112,12 +120,34 @@ class EventStudyService:
                 df = yf.download(ticker, start=start, end=end, progress=False, timeout=30, threads=False)
                 
                 if not df.empty:
+                    # Handle MultiIndex columns (yfinance 0.2.40+ sometimes returns (Price, Ticker))
+                    if isinstance(df.columns, pd.MultiIndex):
+                        try:
+                            # Try to get just the price column we want
+                            if 'Adj Close' in df.columns.get_level_values(0):
+                                df = df.xs('Adj Close', axis=1, level=0, drop_level=True)
+                            elif 'Close' in df.columns.get_level_values(0):
+                                df = df.xs('Close', axis=1, level=0, drop_level=True)
+                        except Exception as e:
+                            logger.warning(f"Failed to flatten MultiIndex columns: {e}")
+                            # Fallback to simple flattening
+                            df.columns = df.columns.get_level_values(0)
+
+                    # Rename columns to standard 'price'
                     if 'Adj Close' in df.columns:
                         df = df[['Adj Close']].rename(columns={'Adj Close': 'price'})
                     elif 'Close' in df.columns:
                         df = df[['Close']].rename(columns={'Close': 'price'})
+                    # Sometimes yfinance returns ticker as column name if flattened
+                    elif ticker in df.columns: 
+                         df = df[[ticker]].rename(columns={ticker: 'price'})
                     else:
-                        continue
+                        # If we have a single column left, assume it's the price
+                        if len(df.columns) == 1:
+                             df.columns = ['price']
+                        else:
+                             logger.warning(f"Could not find price column in: {df.columns}")
+                             continue
                     
                     df['ret'] = df['price'].pct_change()
                     df.index = pd.to_datetime(df.index)

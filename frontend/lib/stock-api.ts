@@ -1,10 +1,10 @@
 /**
  * Stock market API client
- * Refactored with better error handling
+ * Refactored to use Next.js API proxies for robustness
  */
 
 import { apiRequest, ApiError } from "./api-client";
-import { API_URL } from "./constants";
+import { API_URL } from "./constants"; // Still used for non-proxied endpoints
 
 export interface StockQuote {
   symbol: string;
@@ -18,6 +18,7 @@ export interface StockQuote {
   high_52w?: number;
   low_52w?: number;
   timestamp?: string;
+  source?: string;
   error?: string;
 }
 
@@ -100,14 +101,39 @@ export interface EventStudyResponse {
 }
 
 /**
+ * Helper for fetching from local Next.js API routes
+ */
+async function fetchLocalApi<T>(endpoint: string): Promise<T> {
+  const response = await fetch(endpoint);
+  if (!response.ok) {
+    throw new Error(`Local API error: ${response.statusText}`);
+  }
+  return await response.json();
+}
+
+/**
  * Get stock quote
+ * Uses the local proxy /api/stocks for robustness
  */
 export async function getStockQuote(symbol: string): Promise<StockQuote> {
-  return apiRequest<StockQuote>(`/api/stock/quote/${symbol.toUpperCase()}`);
+  try {
+    // Use the robust multi-symbol proxy which handles fallbacks
+    const quotes = await fetchLocalApi<StockQuote[]>(`/api/stocks?symbols=${symbol}`);
+    if (quotes && quotes.length > 0) {
+      return quotes[0];
+    }
+    throw new Error("No data returned");
+  } catch (error) {
+    // Fallback to direct backend call if proxy fails (legacy method)
+    console.warn("Proxy failed, falling back to direct backend", error);
+    return apiRequest<StockQuote>(`/api/stock/quote/${symbol.toUpperCase()}`);
+  }
 }
 
 /**
  * Get options chain
+ * Note: Options data is complex and specific, so we keep using the direct backend route
+ * but add better error handling.
  */
 export async function getOptionsChain(
   symbol: string,
@@ -129,7 +155,6 @@ export async function getOptionsChain(
   try {
     return await apiRequest<OptionsChain>(url.pathname + url.search);
   } catch (error) {
-    // Provide more context for options-specific errors
     if (error instanceof ApiError) {
       throw new ApiError(
         `Failed to fetch options data: ${error.message}`,
@@ -143,9 +168,33 @@ export async function getOptionsChain(
 
 /**
  * Get market overview
+ * Refactored to use local proxy logic implicitly via stock quotes
  */
 export async function getMarketOverview(): Promise<MarketOverview> {
-  return apiRequest<MarketOverview>("/api/stock/market/overview");
+  try {
+    // Fetch major indices using our robust proxy
+    const indices = ["SPY", "QQQ", "DIA", "IWM"];
+    const quotes = await fetchLocalApi<StockQuote[]>(`/api/stocks?symbols=${indices.join(",")}`);
+    
+    const indicesData = quotes.map(q => ({
+      symbol: q.symbol,
+      name: q.symbol === "SPY" ? "S&P 500" : 
+            q.symbol === "QQQ" ? "NASDAQ 100" : 
+            q.symbol === "DIA" ? "Dow Jones" : 
+            q.symbol === "IWM" ? "Russell 2000" : q.name || q.symbol,
+      price: q.current_price || 0,
+      change: q.change || 0,
+      change_percent: q.change_percent || 0
+    }));
+
+    return {
+      indices: indicesData,
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    console.warn("Proxy failed for overview, falling back to direct backend", error);
+    return apiRequest<MarketOverview>("/api/stock/market/overview");
+  }
 }
 
 /**
@@ -153,7 +202,11 @@ export async function getMarketOverview(): Promise<MarketOverview> {
  */
 export async function getMultipleQuotes(symbols: string[]): Promise<StockQuote[]> {
   const symbolsParam = symbols.map((s) => s.toUpperCase()).join(",");
-  return apiRequest<StockQuote[]>(`/api/stock/quotes?symbols=${symbolsParam}`);
+  try {
+    return await fetchLocalApi<StockQuote[]>(`/api/stocks?symbols=${symbolsParam}`);
+  } catch (error) {
+    return apiRequest<StockQuote[]>(`/api/stock/quotes?symbols=${symbolsParam}`);
+  }
 }
 
 /**
@@ -203,5 +256,3 @@ export async function getEventStudy(
 
   return apiRequest<EventStudyResponse>(url.pathname + url.search);
 }
-
-

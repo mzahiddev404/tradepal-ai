@@ -1,160 +1,133 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AppHeader } from "@/components/layout/app-header";
 import { AlertTriangle } from "lucide-react";
+import { AppSidebar } from "@/components/layout/app-sidebar";
+import { MarketTime } from "@/components/chat/market-time";
+import { useRouter } from "next/navigation";
 
 export default function DisclaimerPage() {
+  const router = useRouter();
+  const lastUpdated = "November 22, 2025";
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1a1e23] via-[#23272c] to-[#1a1e23]">
-      <AppHeader />
-      <div className="p-4 sm:p-6 md:p-8">
-        <div className="max-w-4xl mx-auto">
-          <Card className="border-[#2d3237] bg-[#1a1e23]/95 backdrop-blur-sm shadow-2xl">
-            <CardHeader className="pb-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-[#ff9500] to-[#ff7a00] border-2 border-[#ff9500]">
-                  <AlertTriangle className="h-5 w-5 text-white" />
+    <div className="flex h-screen w-full bg-[#0F1115] bg-grid-subtle text-[#dcdcdc] overflow-hidden">
+      <AppSidebar 
+        chatMode="standard"
+        onModeChange={() => router.push("/")}
+        showDocuments={false}
+        onToggleDocuments={() => router.push("/")}
+      />
+      
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <header className="h-14 border-b border-white/5 flex items-center justify-between px-4 sm:px-6 bg-[#131619]/50 backdrop-blur-sm shrink-0 z-10">
+           <div className="flex items-center gap-3 md:hidden">
+             <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-gradient-to-br from-[#34c759] to-[#28a745]">
+               <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+               </svg>
+             </div>
+             <span className="font-bold text-white tracking-tight">TRADEPAL</span>
+          </div>
+
+          <div className="hidden md:flex items-center text-sm font-medium text-gray-400">
+             <span className="text-gray-500">System</span>
+             <span className="mx-2">/</span>
+             <span className="text-white">Disclaimer</span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <MarketTime />
+          </div>
+        </header>
+
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 custom-scrollbar">
+          <div className="max-w-5xl mx-auto">
+            <Card className="trading-panel border-[#2d3237]">
+              <CardHeader className="pb-6 border-b border-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-[#ff9500] to-[#ff7a00] border-2 border-[#ff9500] shadow-lg shadow-orange-500/20">
+                    <AlertTriangle className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-2xl font-bold text-[#dcdcdc] tracking-tight">
+                      SYSTEM DISCLAIMER
+                    </CardTitle>
+                    <p className="text-xs text-gray-500 font-mono mt-1 uppercase tracking-wider">
+                      Compliance Protocol v2.0
+                    </p>
+                  </div>
                 </div>
-                <CardTitle className="text-2xl sm:text-3xl font-bold text-[#dcdcdc]">
-                  Disclaimer
-                </CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-start gap-3 p-4 bg-[#2d1f1f] border border-[#ff9500]/30 rounded-lg">
-                <AlertTriangle className="h-5 w-5 text-[#ff9500] flex-shrink-0 mt-0.5" />
-                <div>
-                  <h2 className="font-semibold text-[#ffb84d] mb-1">
-                    Important Notice
-                  </h2>
-                  <p className="text-sm text-[#ffcc80]">
-                    This is a demonstration application for educational and development purposes only.
+              </CardHeader>
+              
+              <CardContent className="space-y-8 pt-6 font-mono text-sm">
+                {/* Critical Warning */}
+                <div className="flex items-start gap-4 p-5 bg-[#2d1f1f]/50 border border-[#ff3b30]/20 rounded-lg relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-[#ff3b30]"></div>
+                  <AlertTriangle className="h-6 w-6 text-[#ff3b30] flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h2 className="font-bold text-[#ff3b30] mb-2 uppercase tracking-wider text-base">
+                      Critical Warning: Demo Environment
+                    </h2>
+                    <p className="text-[#ffcc80] leading-relaxed text-sm">
+                      TradePal AI is a <strong>software development demonstration</strong> created solely for educational and portfolio purposes. It is NOT a trading platform, brokerage, or financial advisor. All capital, positions, and executions displayed are simulated. <strong>Do not use any information from this system for real-world financial decisions.</strong>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Core Sections Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <section className="space-y-3">
+                      <h2 className="text-base font-bold text-[#dcdcdc] uppercase border-b border-white/10 pb-2 flex items-center gap-2">
+                        <span className="text-[#34c759]">01 //</span> Data Integrity
+                      </h2>
+                      <p className="text-gray-400 leading-relaxed text-xs sm:text-sm">
+                        Market data (stocks, crypto, options) is aggregated from third-party APIs (e.g., CoinCap, Alpha Vantage) and may be delayed, simulated, or inaccurate. <strong>Real-time accuracy is not guaranteed.</strong> We accept no liability for data errors, service interruptions, or latency issues.
+                      </p>
+                    </section>
+
+                    <section className="space-y-3">
+                      <h2 className="text-base font-bold text-[#dcdcdc] uppercase border-b border-white/10 pb-2 flex items-center gap-2">
+                         <span className="text-[#34c759]">02 //</span> AI Limitations
+                      </h2>
+                      <p className="text-gray-400 leading-relaxed text-xs sm:text-sm">
+                        Analysis provided by AI models (Gemini, GPT, etc.) is probabilistic and experimental. Large Language Models can hallucinate or generate misleading financial "advice." <strong>Treat all AI outputs as experimental code artifacts, not verified financial guidance.</strong>
+                      </p>
+                    </section>
+
+                    <section className="space-y-3">
+                      <h2 className="text-base font-bold text-[#dcdcdc] uppercase border-b border-white/10 pb-2 flex items-center gap-2">
+                         <span className="text-[#34c759]">03 //</span> Investment Risk
+                      </h2>
+                      <p className="text-gray-400 leading-relaxed text-xs sm:text-sm">
+                        Trading securities involves substantial risk of loss. Strategies discussed here (options flow, technical patterns) are for educational simulation only. You acknowledge that you are solely responsible for your own due diligence and financial decisions. Past performance is not indicative of future results.
+                      </p>
+                    </section>
+
+                    <section className="space-y-3">
+                      <h2 className="text-base font-bold text-[#dcdcdc] uppercase border-b border-white/10 pb-2 flex items-center gap-2">
+                         <span className="text-[#34c759]">04 //</span> No Liability
+                      </h2>
+                      <p className="text-gray-400 leading-relaxed text-xs sm:text-sm">
+                        The developers, contributors, and operators assume <strong>zero liability</strong> for any damages, losses, or expenses arising from the use of this software. The application is provided "AS IS" without warranty of any kind, express or implied.
+                      </p>
+                    </section>
+                </div>
+                
+                {/* Footer */}
+                <div className="pt-8 mt-4 border-t border-[#2d3237] flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-gray-500">
+                  <p className="text-center sm:text-left">
+                    By using this terminal, you irrevocably agree to these terms.
+                  </p>
+                  <p className="font-mono bg-white/5 px-3 py-1 rounded border border-white/5">
+                    LAST_UPDATED: <span className="text-[#dcdcdc] font-bold">{lastUpdated}</span>
                   </p>
                 </div>
-              </div>
-
-              <section className="space-y-4">
-                <h2 className="text-xl font-semibold text-[#dcdcdc]">1. Demo Application</h2>
-                <p className="text-[#9ca3af] leading-relaxed">
-                  TradePal AI is a demonstration application created for educational and development
-                  purposes. This application is not intended for actual trading, investment decisions, or
-                  financial advice.
-                </p>
-              </section>
-
-              <section className="space-y-4">
-                <h2 className="text-xl font-semibold text-[#dcdcdc]">2. No Financial Advice</h2>
-                <p className="text-[#9ca3af] leading-relaxed">
-                  The information provided by this application, including but not limited to stock quotes,
-                  options data, market analysis, and AI-generated responses, is for informational
-                  purposes only. It does not constitute financial, investment, legal, or tax advice. You
-                  should not rely on this information to make investment decisions.
-                </p>
-              </section>
-
-              <section className="space-y-4">
-                <h2 className="text-xl font-semibold text-[#dcdcdc]">3. Market Data Disclaimer</h2>
-                <p className="text-[#9ca3af] leading-relaxed">
-                  Stock prices, options data, and market information displayed in this application are
-                  provided by third-party data sources and may be delayed, inaccurate, or incomplete. The
-                  developers of this application do not guarantee the accuracy, completeness, or timeliness
-                  of any market data. Real-time data may not be available, and prices shown may not reflect
-                  current market conditions.
-                </p>
-              </section>
-
-              <section className="space-y-4">
-                <h2 className="text-xl font-semibold text-[#dcdcdc]">4. Investment Risks</h2>
-                <p className="text-[#9ca3af] leading-relaxed">
-                  Trading stocks, options, and other securities involves substantial risk of loss. Past
-                  performance is not indicative of future results. You may lose some or all of your
-                  investment. Options trading involves additional risks and is not suitable for all
-                  investors. Please consult with a licensed financial advisor before making any investment
-                  decisions.
-                </p>
-              </section>
-
-              <section className="space-y-4">
-                <h2 className="text-xl font-semibold text-[#dcdcdc]">5. No Liability</h2>
-                <p className="text-[#9ca3af] leading-relaxed">
-                  The developers, contributors, and operators of TradePal AI (collectively, "we", "us", or
-                  "our") shall not be held liable for any losses, damages, or expenses arising from:
-                </p>
-                <ul className="list-disc list-inside space-y-2 text-[#9ca3af] ml-4 leading-relaxed">
-                  <li>Your use or inability to use this application</li>
-                  <li>Any errors, inaccuracies, or omissions in the data or information provided</li>
-                  <li>Any decisions made based on information from this application</li>
-                  <li>Any financial losses incurred from trading or investment activities</li>
-                  <li>Technical failures, interruptions, or errors in the application</li>
-                  <li>Any unauthorized access to your data or information</li>
-                </ul>
-              </section>
-
-              <section className="space-y-4">
-                <h2 className="text-xl font-semibold text-[#dcdcdc]">6. AI-Generated Content</h2>
-                <p className="text-[#9ca3af] leading-relaxed">
-                  Responses generated by the AI assistant in this application are created by artificial
-                  intelligence and may contain errors, inaccuracies, or outdated information. AI-generated
-                  content should not be relied upon for making financial or investment decisions. Always
-                  verify information from multiple reliable sources and consult with qualified
-                  professionals.
-                </p>
-              </section>
-
-              <section className="space-y-4">
-                <h2 className="text-xl font-semibold text-[#dcdcdc]">7. Third-Party Services</h2>
-                <p className="text-[#9ca3af] leading-relaxed">
-                  This application may use third-party services and APIs for data and functionality. We
-                  are not responsible for the availability, accuracy, or terms of service of these
-                  third-party providers. Your use of third-party services is subject to their respective
-                  terms and conditions.
-                </p>
-              </section>
-
-              <section className="space-y-4">
-                <h2 className="text-xl font-semibold text-[#dcdcdc]">8. No Warranty</h2>
-                <p className="text-[#9ca3af] leading-relaxed">
-                  This application is provided "as is" without any warranties, express or implied,
-                  including but not limited to warranties of merchantability, fitness for a particular
-                  purpose, or non-infringement. We do not warrant that the application will be
-                  uninterrupted, error-free, or secure.
-                </p>
-              </section>
-
-              <section className="space-y-4">
-                <h2 className="text-xl font-semibold text-[#dcdcdc]">9. Regulatory Compliance</h2>
-                <p className="text-[#9ca3af] leading-relaxed">
-                  This application is not registered with any financial regulatory authority and is not
-                  intended to provide regulated financial services. If you require financial services,
-                  please consult with licensed and registered financial professionals.
-                </p>
-              </section>
-
-              <section className="space-y-4">
-                <h2 className="text-xl font-semibold text-[#dcdcdc]">10. Acceptance of Terms</h2>
-                <p className="text-[#9ca3af] leading-relaxed">
-                  By using this application, you acknowledge that you have read, understood, and agree to
-                  this disclaimer. You understand that this is a demo application and that you use it at
-                  your own risk. If you do not agree with any part of this disclaimer, you should not use
-                  this application.
-                </p>
-              </section>
-
-              <div className="pt-6 border-t border-[#2d3237]">
-                <p className="text-sm text-[#9ca3af]">
-                  <strong className="text-[#dcdcdc]">Last Updated:</strong> {new Date().toLocaleDateString()}
-                </p>
-                <p className="text-sm text-[#9ca3af] mt-2">
-                  If you have any questions about this disclaimer, please contact the development team.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
-
-

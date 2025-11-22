@@ -4,7 +4,16 @@
 
 // Standard chat suggestions - for backend multi-agent system
 // These work with the backend and don't require real-time stock data
+// Focused on TSLA and SPY for demonstration
 export const STANDARD_CHAT_SUGGESTIONS = [
+  {
+    text: "What patterns should I watch in SPY?",
+    category: "analysis" as const,
+  },
+  {
+    text: "Analyze Tesla trading patterns",
+    category: "analysis" as const,
+  },
   {
     text: "What is the PDT rule?",
     category: "education" as const,
@@ -12,14 +21,6 @@ export const STANDARD_CHAT_SUGGESTIONS = [
   {
     text: "How do I get started with trading?",
     category: "education" as const,
-  },
-  {
-    text: "What patterns should I watch in SPY?",
-    category: "analysis" as const,
-  },
-  {
-    text: "Short insight (bullish/bearish) in one sentence.",
-    category: "analysis" as const,
   },
   {
     text: "What are common trading mistakes?",

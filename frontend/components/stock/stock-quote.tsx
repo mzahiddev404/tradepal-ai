@@ -30,9 +30,16 @@ export function StockQuoteDisplay({ quote }: StockQuoteProps) {
   return (
     <Card className="trading-panel p-6 border border-[#2d3237] bg-[#1a1e23]">
       <div className="space-y-4">
-        <div>
-          <h2 className="text-2xl font-bold text-[#dcdcdc] uppercase tracking-tight">{quote.symbol}</h2>
-          {quote.name && <p className="text-sm text-[#969696]">{quote.name}</p>}
+        <div className="flex justify-between items-start">
+          <div>
+            <h2 className="text-2xl font-bold text-[#dcdcdc] uppercase tracking-tight">{quote.symbol}</h2>
+            {quote.name && <p className="text-sm text-[#969696]">{quote.name}</p>}
+          </div>
+          {quote.source && (
+            <Badge variant="outline" className="text-[10px] text-[#969696] border-[#373d41]">
+              Source: {quote.source}
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-baseline gap-2">
@@ -78,5 +85,3 @@ export function StockQuoteDisplay({ quote }: StockQuoteProps) {
     </Card>
   );
 }
-
-
