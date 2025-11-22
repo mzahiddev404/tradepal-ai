@@ -62,14 +62,20 @@ export default function MarketPage() {
   const loadMarketData = async () => {
     setLoading(true);
     try {
+      // Use individual error handling so one failure doesn't break the whole page
       const [overview, spy, tsla] = await Promise.all([
-        getMarketOverview(),
-        getStockQuote("SPY"),
-        getStockQuote("TSLA"),
+        getMarketOverview().catch(e => { console.warn("Overview failed", e); return null; }),
+        getStockQuote("SPY").catch(e => { console.warn("SPY failed", e); return null; }),
+        getStockQuote("TSLA").catch(e => { console.warn("TSLA failed", e); return null; }),
       ]);
-      setMarketOverview(overview);
-      setSpyQuote(spy);
-      setTslaQuote(tsla);
+      
+      if (overview) setMarketOverview(overview);
+      if (spy) setSpyQuote(spy);
+      if (tsla) {
+        setTslaQuote(tsla);
+        // Auto-select TSLA on load so Event Study appears immediately
+        if (!selectedSymbol) setSelectedSymbol(tsla.symbol);
+      }
     } catch (error) {
       console.error("Error loading market data:", error);
     } finally {
@@ -110,16 +116,28 @@ export default function MarketPage() {
         minPremium,
         showUnusualOnly
       );
+      
+      // Check for error response
+      if (options.error) {
+        console.warn("Options data unavailable:", options.error);
+        setOptionsData({
+            symbol: symbol,
+            error: options.error
+        });
+        return;
+      }
+
       setOptionsData(options);
       setSelectedSymbol(symbol);
       if (options.filtered_expirations && options.filtered_expirations.length > 0 && !expiration) {
         setSelectedExpiration(options.filtered_expirations[0].date);
       }
     } catch (error) {
-      console.error("Error loading options:", error);
+      console.warn("Failed to fetch options (likely market closed or rate limit):", error);
+      // Set a "graceful" error state that doesn't break the UI
       setOptionsData({
         symbol: symbol,
-        error: error instanceof Error ? error.message : "Failed to load options data"
+        error: "Options data temporarily unavailable"
       });
     } finally {
       setLoading(false);

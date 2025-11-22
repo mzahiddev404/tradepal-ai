@@ -1,466 +1,363 @@
 """
-Event study service for analyzing stock returns around religious holidays.
-
-This module provides functionality to analyze cumulative returns around
-Jewish High Holidays and Muslim holy windows using event study methodology.
+Smart Flow Analysis service.
+Parses options flow data (Cheddar Flow exports) to determine directional bias.
 """
-import yfinance as yf
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Optional, Tuple
+import re
+from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 import logging
-from utils.stock_data import stock_data_service
+from utils.chromadb_client import chromadb_client
+import io
 
 logger = logging.getLogger(__name__)
 
-
-class EventStudyService:
-    """Service for performing event studies on stock returns around holidays."""
-    
-    # Holiday dates for 2018-2025
-    HOLIDAYS = {
-        # Jewish High Holidays: Rosh Hashanah (first day), Yom Kippur (day)
-        'Rosh_Hashanah': [
-            '2018-09-10', '2019-09-30', '2020-09-19', '2021-09-07', '2022-09-26',
-            '2023-09-16', '2024-10-03', '2025-09-22'
-        ],
-        'Yom_Kippur': [
-            '2018-09-19', '2019-10-09', '2020-09-28', '2021-09-16', '2022-10-05',
-            '2023-09-25', '2024-10-12', '2025-10-02'
-        ],
-        # Muslim windows - approximate Gregorian dates (depends on moon sighting)
-        'Ramadan_start': [
-            '2018-05-16', '2019-05-06', '2020-04-24', '2021-04-13', '2022-04-02',
-            '2023-03-23', '2024-03-11', '2025-03-01'
-        ],
-        'Ramadan_end': [
-            '2018-06-14', '2019-06-04', '2020-05-23', '2021-05-12', '2022-05-01',
-            '2023-04-21', '2024-04-09', '2025-03-29'
-        ],
-        'Eid_al_Fitr': [
-            '2018-06-15', '2019-06-05', '2020-05-24', '2021-05-13', '2022-05-02',
-            '2023-04-22', '2024-04-10', '2025-03-30'
-        ],
-        'Eid_al_Adha': [
-            '2018-08-22', '2019-08-11', '2020-07-31', '2021-07-20', '2022-07-09',
-            '2023-06-28', '2024-06-16', '2025-06-06'
-        ]
-    }
-    
-    # Default event windows (inclusive)
-    DEFAULT_WINDOWS = [(-5, 5), (-1, 1), (0, 1)]
+class SmartFlowService:
+    """
+    Service for analyzing options flow data to determine market sentiment.
+    Parses tabular data from ChromaDB and computes flow metrics.
+    """
     
     def __init__(self):
-        """Initialize the event study service."""
-        pass
-    
-    def fetch_prices(self, ticker: str, start: str, end: str) -> pd.DataFrame:
+        self.chromadb = chromadb_client
+
+    def _parse_document_to_dataframe(self, text: str) -> pd.DataFrame:
         """
-        Fetch historical price data for a ticker.
-        Uses multiple methods including stock_data_service fallback.
-        
-        Args:
-            ticker: Stock symbol (e.g., 'SPY')
-            start: Start date string (YYYY-MM-DD)
-            end: End date string (YYYY-MM-DD)
-            
-        Returns:
-            DataFrame with 'price' and 'ret' columns
+        Attempts to parse unstructured text into a DataFrame.
+        Handles CSV-like structures or space-separated tables common in PDF exports.
         """
-        import time
+        lines = text.split('\n')
+        data = []
         
-        # Method 1: Try using period instead of date range (sometimes more reliable)
-        try:
-            start_dt = pd.to_datetime(start)
-            end_dt = pd.to_datetime(end)
-            days_diff = (end_dt - start_dt).days
-            
-            # Use period parameter for shorter ranges
-            if days_diff <= 36500: # Try period method for most ranges
-                ticker_obj = yf.Ticker(ticker)
-                # Try period-based fetch
-                if days_diff <= 5:
-                    period = '5d'
-                elif days_diff <= 30:
-                    period = '1mo'
-                elif days_diff <= 90:
-                    period = '3mo'
-                elif days_diff <= 180:
-                    period = '6mo'
-                elif days_diff <= 365:
-                    period = '1y'
-                elif days_diff <= 730:
-                    period = '2y'
-                elif days_diff <= 1825:
-                    period = '5y'
-                elif days_diff <= 3650:
-                    period = '10y'
-                else:
-                    period = 'max'
+        # Regex to identify a flow row. 
+        # Cheddar Flow columns: Time, Ticker, Expiry, Strike, C/P, Spot, Order Type, Prem, ...
+        # Example: "09:30:01 TSLA 11/28/25 400 C 395.20 SWEEP $1.2M ..."
+        # We'll try to extract key fields: Ticker, Expiry, Strike, Call/Put, Premium, Side (Ask/Bid/Above/Below)
+        
+        for line in lines:
+            # Skip short lines
+            if len(line) < 10:
+                continue
                 
-                df = ticker_obj.history(period=period)
-                if not df.empty and len(df) > 0:
-                    if 'Close' in df.columns:
-                        # Filter to date range
-                        df = df[(df.index >= start_dt) & (df.index <= end_dt)]
-                        if not df.empty:
-                            df = df[['Close']].rename(columns={'Close': 'price'})
-                            df['ret'] = df['price'].pct_change()
-                            df.index = pd.to_datetime(df.index)
-                            logger.info(f"Successfully fetched {len(df)} rows using period method")
-                            return df
-        except Exception as e:
-            logger.debug(f"Period method failed: {e}")
-        
-        # Method 2: Try yf.download with date range
-        import time
-        for attempt in range(2):
             try:
-                df = yf.download(ticker, start=start, end=end, progress=False, timeout=30, threads=False)
+                row = {}
                 
-                if not df.empty:
-                    # Handle MultiIndex columns (yfinance 0.2.40+ sometimes returns (Price, Ticker))
-                    if isinstance(df.columns, pd.MultiIndex):
-                        try:
-                            # Try to get just the price column we want
-                            if 'Adj Close' in df.columns.get_level_values(0):
-                                df = df.xs('Adj Close', axis=1, level=0, drop_level=True)
-                            elif 'Close' in df.columns.get_level_values(0):
-                                df = df.xs('Close', axis=1, level=0, drop_level=True)
-                        except Exception as e:
-                            logger.warning(f"Failed to flatten MultiIndex columns: {e}")
-                            # Fallback to simple flattening
-                            df.columns = df.columns.get_level_values(0)
-
-                    # Rename columns to standard 'price'
-                    if 'Adj Close' in df.columns:
-                        df = df[['Adj Close']].rename(columns={'Adj Close': 'price'})
-                    elif 'Close' in df.columns:
-                        df = df[['Close']].rename(columns={'Close': 'price'})
-                    # Sometimes yfinance returns ticker as column name if flattened
-                    elif ticker in df.columns: 
-                         df = df[[ticker]].rename(columns={ticker: 'price'})
+                # 1. Extract Ticker (Simple 2-5 letters)
+                # Must filter out common keywords that look like tickers
+                ignored_words = {
+                    'CALL', 'PUT', 'SWEEP', 'BLOCK', 'SPLIT', 'ASK', 'BID', 'MID', 
+                    'ABOVE', 'BELOW', 'OPENING', 'UNUSUAL', 'OTM', 'ITM', 'ATM',
+                    'AM', 'PM', 'EST', 'CST', 'PST', 'ET', 'PT', 'JAN', 'FEB', 'MAR',
+                    'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+                    'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN', 'EXP', 'DTE',
+                    'SPOT', 'VOL', 'OI', 'SIDE', 'ORDER', 'TYPE', 'DATE', 'TIME', 'STR', 'TICKER',
+                    'ON', 'IN', 'AT', 'OF', 'FOR', 'TO', 'BY', 'WITH', 'DETAILS', 'SHOWED', 'ACTIVITY'
+                }
+                
+                # Find all candidates
+                candidates = re.findall(r'\b[A-Z]{1,5}\b', line)
+                ticker = None
+                for cand in candidates:
+                    if cand not in ignored_words and not cand.isdigit():
+                        # Assume the first valid non-ignored word is the ticker
+                        # Also usually tickers are not just 1 letter 'C' or 'P' unless explicit
+                        if len(cand) == 1 and cand in ['C', 'P']: 
+                            continue
+                        ticker = cand
+                        break
+                
+                if not ticker: continue
+                row['symbol'] = ticker
+                
+                # 2. Extract Date/Expiry (MM/DD/YY or MM/DD/YYYY or YYYY-MM-DD)
+                date_match = re.search(r'\b(\d{1,2}/\d{1,2}/\d{2,4})\b', line)
+                if date_match:
+                    row['expiry'] = date_match.group(1)
+                else:
+                    # Try YYYY-MM-DD
+                    date_match_iso = re.search(r'\b(\d{4}-\d{2}-\d{2})\b', line)
+                    if date_match_iso:
+                        row['expiry'] = date_match_iso.group(1)
                     else:
-                        # If we have a single column left, assume it's the price
-                        if len(df.columns) == 1:
-                             df.columns = ['price']
-                        else:
-                             logger.warning(f"Could not find price column in: {df.columns}")
-                             continue
-                    
-                    df['ret'] = df['price'].pct_change()
-                    df.index = pd.to_datetime(df.index)
-                    
-                    if len(df) > 0:
-                        logger.info(f"Successfully fetched {len(df)} rows using download method")
-                        return df
-                
-                if attempt < 1:
-                    time.sleep(2)
+                        continue # No expiry found, likely header or garbage
+                        
+                # 3. Extract Call/Put
+                if re.search(r'\b(Call|C)\b', line, re.IGNORECASE):
+                    row['put_call'] = 'CALL'
+                elif re.search(r'\b(Put|P)\b', line, re.IGNORECASE):
+                    row['put_call'] = 'PUT'
+                else:
                     continue
-            except Exception as e:
-                logger.debug(f"Download attempt {attempt + 1} failed: {e}")
-                if attempt < 1:
-                    time.sleep(2)
-        
-        # Method 3: Try using stock_data_service (has better error handling)
-        try:
-            logger.info(f"Trying stock_data_service fallback for {ticker}")
-            start_dt = pd.to_datetime(start)
-            end_dt = pd.to_datetime(end)
-            days_diff = (end_dt - start_dt).days
-            
-            # Fetch in chunks if range is large
-            all_prices = []
-            chunk_size = 365  # 1 year chunks
-            
-            current_start = start_dt
-            while current_start < end_dt:
-                current_end = min(current_start + pd.Timedelta(days=chunk_size), end_dt)
-                
-                price_data = stock_data_service.get_historical_price_range(
-                    symbol=ticker,
-                    start_date=current_start.strftime('%Y-%m-%d'),
-                    end_date=current_end.strftime('%Y-%m-%d')
-                )
-                
-                if 'prices' in price_data and price_data['prices']:
-                    for p in price_data['prices']:
-                        all_prices.append({
-                            'date': pd.to_datetime(p['date']),
-                            'price': p['close']
-                        })
-                
-                current_start = current_end + pd.Timedelta(days=1)
-            
-            if all_prices:
-                df = pd.DataFrame(all_prices)
-                df.set_index('date', inplace=True)
-                df['ret'] = df['price'].pct_change()
-                logger.info(f"Successfully fetched {len(df)} rows using stock_data_service")
-                return df
-        except Exception as e:
-            logger.debug(f"stock_data_service method failed: {e}")
-        
-        # If all methods failed
-        raise ValueError(
-            f"No data returned for {ticker} from {start} to {end}. "
-            f"This may be due to network issues, rate limiting, or invalid date range. "
-            f"Please try again in a few moments or check your internet connection."
-        )
-    
-    def get_trading_date_index(self, ts_index: pd.DatetimeIndex, target_date: str) -> Optional[pd.Timestamp]:
-        """
-        Get the nearest trading date on or before target_date.
-        
-        Args:
-            ts_index: DatetimeIndex of trading dates
-            target_date: Target date string (YYYY-MM-DD)
-            
-        Returns:
-            Nearest trading date Timestamp or None
-        """
-        d = pd.to_datetime(target_date)
-        if d in ts_index:
-            return d
-        
-        # If target is weekend/holiday, use next previous trading day
-        earlier = ts_index[ts_index <= d]
-        if len(earlier) == 0:
-            return None
-        return earlier[-1]
-    
-    def calc_cumret(self, price_series: pd.Series, start_date: pd.Timestamp, end_date: pd.Timestamp) -> float:
-        """
-        Calculate cumulative return between two dates.
-        
-        Args:
-            price_series: Series of prices indexed by date
-            start_date: Start date Timestamp
-            end_date: End date Timestamp
-            
-        Returns:
-            Cumulative return as float, or np.nan if dates not found
-        """
-        if start_date not in price_series.index or end_date not in price_series.index:
-            return np.nan
-        
-        p0 = price_series.loc[start_date]
-        p1 = price_series.loc[end_date]
-        
-        if p0 == 0:
-            return np.nan
-        
-        return (p1 / p0) - 1.0
-    
-    def event_window_return(
-        self, 
-        prices_df: pd.DataFrame, 
-        event_date_str: str, 
-        window: Tuple[int, int]
-    ) -> float:
-        """
-        Calculate cumulative return for an event window.
-        
-        Args:
-            prices_df: DataFrame with price data
-            event_date_str: Event date string (YYYY-MM-DD)
-            window: Tuple of (start_offset, end_offset) days
-            
-        Returns:
-            Cumulative return for the window, or np.nan if calculation fails
-        """
-        ev = pd.to_datetime(event_date_str)
-        idx = prices_df.index
-        
-        # Find trading dates for event day
-        ev_trade = self.get_trading_date_index(idx, event_date_str)
-        if ev_trade is None:
-            return np.nan
-        
-        start_dt = ev_trade + pd.Timedelta(days=window[0])
-        end_dt = ev_trade + pd.Timedelta(days=window[1])
-        
-        # Find nearest trading dates on or before start_dt and end_dt
-        start_trade = self.get_trading_date_index(idx, start_dt.strftime('%Y-%m-%d'))
-        end_trade = self.get_trading_date_index(idx, end_dt.strftime('%Y-%m-%d'))
-        
-        if start_trade is None or end_trade is None:
-            return np.nan
-        
-        return self.calc_cumret(prices_df['price'], start_trade, end_trade)
-    
-    def bootstrap_pvals(self, arr: np.ndarray, nboot: int = 5000) -> float:
-        """
-        Calculate bootstrap p-value for a sample.
-        
-        Args:
-            arr: Array of returns
-            nboot: Number of bootstrap iterations
-            
-        Returns:
-            Two-sided bootstrap p-value
-        """
-        arr = arr[~np.isnan(arr)]
-        if len(arr) < 2:
-            return np.nan
-        
-        boot_means = []
-        for _ in range(nboot):
-            samp = np.random.choice(arr, size=len(arr), replace=True)
-            boot_means.append(np.mean(samp))
-        
-        boot_means = np.array(boot_means)
-        obs = np.mean(arr)
-        
-        # Two-sided p-value
-        p = np.mean(np.abs(boot_means) >= abs(obs))
-        return p
-    
-    def run_event_study(
-        self,
-        ticker: str,
-        start_date: str = "2017-12-01",
-        end_date: Optional[str] = None,
-        windows: Optional[List[Tuple[int, int]]] = None,
-        holidays: Optional[Dict[str, List[str]]] = None
-    ) -> Dict:
-        """
-        Run event study analysis.
-        
-        Args:
-            ticker: Stock symbol (e.g., 'SPY')
-            start_date: Start date string (YYYY-MM-DD)
-            end_date: End date string (YYYY-MM-DD), defaults to today
-            windows: List of (start, end) tuples for event windows
-            holidays: Dictionary of holiday names to date lists
-            
-        Returns:
-            Dictionary with summary statistics and event-level data
-        """
-        if end_date is None:
-            end_date = datetime.now().strftime('%Y-%m-%d')
-        
-        if windows is None:
-            windows = self.DEFAULT_WINDOWS
-        
-        if holidays is None:
-            holidays = self.HOLIDAYS
-        
-        try:
-            # Validate date range
-            start_dt = pd.to_datetime(start_date)
-            end_dt = pd.to_datetime(end_date) if end_date else pd.to_datetime(datetime.now())
-            
-            if start_dt > end_dt:
-                return {
-                    "error": f"Invalid date range: start_date ({start_date}) must be before end_date ({end_date})"
-                }
-            
-            # Limit date range to reasonable bounds (max 10 years)
-            max_range_days = 3650
-            if (end_dt - start_dt).days > max_range_days:
-                logger.warning(f"Date range exceeds {max_range_days} days, limiting to last 10 years")
-                start_dt = end_dt - pd.Timedelta(days=max_range_days)
-                start_date = start_dt.strftime('%Y-%m-%d')
-            
-            # Fetch price data
-            logger.info(f"Fetching price data for {ticker} from {start_date} to {end_date}")
-            prices = self.fetch_prices(ticker, start_date, end_date)
-            
-            if prices.empty:
-                return {
-                    "error": f"No price data available for {ticker} in the specified date range ({start_date} to {end_date}). Please check the symbol and date range."
-                }
-            
-            logger.info(f"Price data from {prices.index[0].date()} to {prices.index[-1].date()}")
-            
-            # Calculate returns for all events
-            rows = []
-            for holiday_name, dates in holidays.items():
-                for d in dates:
-                    # Only process dates within our data range
-                    event_date = pd.to_datetime(d)
-                    if event_date < prices.index[0] or event_date > prices.index[-1]:
-                        continue
                     
-                    for w in windows:
-                        r = self.event_window_return(prices, d, w)
-                        rows.append({
-                            'holiday': holiday_name,
-                            'event_date': d,
-                            'window': f"{w[0]}..{w[1]}",
-                            'cum_return': r
-                        })
+                # 4. Extract Premium (e.g., $1.2M, 1.2M, 500k, 50,000)
+                # Regex: Optional $ -> digits/commas/dots -> optional K/M/B
+                # We need to be careful not to match Strike or Spot price.
+                # Premium usually has K/M or is large (>1000).
+                # Or it has a $ sign.
+                
+                # Pattern 1: Explicit $ (Handled well)
+                # Pattern 2: Ends with K/M/B (e.g. 1.2M)
+                
+                prem_match = re.search(r'(?:\$\s?)?([0-9,]+(?:\.\d+)?)\s*([KkMmBb])\b', line)
+                if prem_match:
+                    # Has multiplier, likely premium
+                    raw_val = prem_match.group(1).replace(',', '')
+                    val = float(raw_val)
+                    multiplier = prem_match.group(2).upper()
+                    if multiplier == 'K': val *= 1000
+                    if multiplier == 'M': val *= 1000000
+                    if multiplier == 'B': val *= 1000000000
+                    row['premium'] = val
+                else:
+                    # Try finding with $ but no multiplier
+                    prem_match_dollar = re.search(r'\$\s?([0-9,]+(?:\.\d+)?)', line)
+                    if prem_match_dollar:
+                        raw_val = prem_match_dollar.group(1).replace(',', '')
+                        row['premium'] = float(raw_val)
+                    else:
+                         row['premium'] = 0.0
+                    
+                # 5. Extract Strike (Number near Expiry or Call/Put or explicit "Strike: ...")
+                # Regex 1: "Strike: 400" (Common in narrative text)
+                strike_match_explicit = re.search(r'Strike[:\s]+([0-9,]+(?:\.\d+)?)', line, re.IGNORECASE)
+                if strike_match_explicit:
+                    row['strike'] = float(strike_match_explicit.group(1).replace(',', ''))
+                else:
+                    # Regex 2: "400 C" or "400.0 P" (Common in tabular text)
+                    strike_match = re.search(r'\b(\d+(?:\.\d+)?)\s+(?:C|P|Call|Put)\b', line, re.IGNORECASE)
+                    if strike_match:
+                       row['strike'] = float(strike_match.group(1))
+                    else:
+                       row['strike'] = 0.0
+
+                # 6. Extract Side/Condition (Sweep, Block, Split, Ask, Bid, Above)
+                line_upper = line.upper()
+                row['side'] = 'UNKNOWN'
+                if 'ASK' in line_upper or 'ABOVE' in line_upper:
+                    row['side'] = 'ASK'
+                elif 'BID' in line_upper or 'BELOW' in line_upper:
+                    row['side'] = 'BID'
+                elif 'MID' in line_upper:
+                    row['side'] = 'MID'
+                    
+                row['is_sweep'] = 'SWEEP' in line_upper
+                
+                # 7. Condition flags
+                row['conds'] = ''
+                if 'UNUSUAL' in line_upper: row['conds'] += 'Unusual '
+                if 'OPENING' in line_upper: row['conds'] += 'Opening '
+                
+                data.append(row)
+            except Exception:
+                continue
+                
+        return pd.DataFrame(data)
+
+    def _detect_programs(self, df: pd.DataFrame) -> List[str]:
+        """
+        Detect algorithmic programs (clusters of trades).
+        Criteria: 3+ trades, same expiry/strike/side, within short timeframe (not parsing time yet, so just sequential).
+        """
+        programs = []
+        if df.empty or 'strike' not in df.columns:
+            return []
             
-            if not rows:
-                return {
-                    "error": "No events found in the specified date range"
-                }
+        # Group by Expiry, Strike, Side, Put/Call
+        grouped = df.groupby(['expiry', 'strike', 'put_call', 'side'])
+        for name, group in grouped:
+            if len(group) >= 3:
+                expiry, strike, put_call, side = name
+                # Calculate total premium for this cluster
+                cluster_prem = group['premium'].sum()
+                if cluster_prem > 100000: # Only meaningful clusters
+                    programs.append(f"{put_call} {strike} {expiry} ({len(group)}x)")
+        
+        return programs[:3] # Top 3
+
+    def analyze_flow(self, ticker: str, df: pd.DataFrame) -> Dict:
+        """
+        Performs the quantitative analysis on the parsed dataframe.
+        """
+        if df.empty:
+            return {"error": "No flow data found to analyze."}
             
-            df_events = pd.DataFrame(rows)
-            df_events['cum_return'] = df_events['cum_return'].astype(float)
+        # Filter for Ticker
+        df = df[df['symbol'] == ticker.upper()].copy()
+        if df.empty:
+            return {"error": f"No flow data found for {ticker}."}
             
-            # Summary statistics by holiday & window
-            summary = df_events.groupby(['holiday', 'window'])['cum_return'].agg(['count', 'mean', 'std'])
-            summary['t_stat'] = summary['mean'] / (summary['std'] / np.sqrt(summary['count']))
-            summary = summary.reset_index()
+        # --- Focus Filters ---
+        # 1. Expiry <= 10 days (Front-week)
+        # Parse expiry to datetime
+        try:
+            df['expiry_dt'] = pd.to_datetime(df['expiry'])
+            today = datetime.now()
             
-            # Calculate bootstrap p-values
-            pvals = []
-            for (h, w), grp in df_events.groupby(['holiday', 'window']):
-                p = self.bootstrap_pvals(grp['cum_return'].values, nboot=2000)
-                pvals.append({
-                    'holiday': h,
-                    'window': w,
-                    'bootstrap_p': p,
-                    'n': grp['cum_return'].count()
-                })
+            # Robustness: If all expiries are far in future/past, just take the nearest ones?
+            days_to_exp = (df['expiry_dt'] - today).dt.days
+            unique_expiries = sorted(df['expiry_dt'].unique())
+            # front_expiries = unique_expiries[:2] # Original strict filter
+            # df = df[df['expiry_dt'].isin(front_expiries)]
+            pass # Use all expiries
             
-            pvals_df = pd.DataFrame(pvals)
+        except Exception as e:
+            logger.warning(f"Date parsing failed: {e}")
+            pass
+
+        # 2. Premium Filter (Relaxed per user request)
+        # We include all trades by default to ensure data visibility.
+        # You can re-enable specific thresholds here if needed.
+        # df_high_value = df[df['premium'] >= 50000] # Original strict filter
+        pass # No filter applied
+        
+        # --- Key Aggregations ---
+        
+        # Total Premiums
+        bullish_trades = df[(df['put_call'] == 'CALL') & (df['side'].isin(['ASK', 'ABOVE', 'UNKNOWN']))]
+        bearish_trades = df[(df['put_call'] == 'PUT') & (df['side'].isin(['ASK', 'ABOVE', 'UNKNOWN']))]
+        
+        call_prem = bullish_trades['premium'].sum()
+        put_prem = bearish_trades['premium'].sum()
+        
+        total_prem = call_prem + put_prem
+        
+        # Flow Score
+        if total_prem > 0:
+            flow_score = (call_prem - put_prem) / total_prem
+        else:
+            flow_score = 0
             
-            # Merge summary and p-values
-            out = summary.merge(
-                pvals_df,
-                left_on=['holiday', 'window'],
-                right_on=['holiday', 'window']
-            )
+        # Aggression Ratio
+        sweeps = df[df['is_sweep']]
+        if not sweeps.empty:
+            aggressive_sweeps = sweeps[sweeps['side'].isin(['ASK', 'ABOVE'])]
+            aggression_ratio = len(aggressive_sweeps) / len(sweeps)
+        else:
+            aggression_ratio = 0
             
-            # Convert to dict format for JSON serialization
-            summary_list = out.to_dict('records')
+        # Top Strikes
+        key_strikes = []
+        if 'strike' in df.columns:
+            top_strikes = df.groupby('strike')['premium'].sum().sort_values(ascending=False).head(3)
+            key_strikes = [str(s) for s in top_strikes.index.tolist()]
+        
+        # Dominant Expiry
+        if not df.empty:
+            dominant_expiry = df['expiry'].mode().iloc[0]
+        else:
+            dominant_expiry = "N/A"
+
+        # Program Detection
+        notable_programs = self._detect_programs(df)
             
-            # Format for response
-            for record in summary_list:
-                # Round numeric values
-                record['mean'] = round(record['mean'], 6) if not pd.isna(record['mean']) else None
-                record['std'] = round(record['std'], 6) if not pd.isna(record['std']) else None
-                record['t_stat'] = round(record['t_stat'], 4) if not pd.isna(record['t_stat']) else None
-                record['bootstrap_p'] = round(record['bootstrap_p'], 4) if not pd.isna(record['bootstrap_p']) else None
-                record['count'] = int(record['count'])
-                record['n'] = int(record['n'])
+        # Recommendation Logic
+        bias = "NEUTRAL"
+        if flow_score > 0.6:
+            bias = "BULLISH"
+        elif flow_score < -0.6:
+            bias = "BEARISH"
             
-            # Format events list
-            events_list = df_events.to_dict('records')
-            for event in events_list:
-                event['cum_return'] = round(event['cum_return'], 6) if not pd.isna(event['cum_return']) else None
+        if aggression_ratio > 0.7:
+            conviction = "High Conviction"
+        else:
+            conviction = "Moderate"
+            
+        rec = "Mixed flow; await clearer signal."
+        if bias == "BULLISH":
+            rec = f"Flow is Bullish ({flow_score:.2f}). Consider calls/debit spreads."
+        elif bias == "BEARISH":
+            rec = f"Flow is Bearish ({flow_score:.2f}). Consider puts or defensive posturing."
+            
+        # Construct Report
+        report = {
+            "symbol": ticker,
+            "bias": bias,
+            "flow_score": round(flow_score, 2),
+            "aggression_ratio": round(aggression_ratio, 2),
+            "call_premium": call_prem,
+            "put_premium": put_prem,
+            "dominant_expiry": dominant_expiry,
+            "key_strikes": key_strikes,
+            "notable_programs": notable_programs,
+            "recommendation": rec,
+            "conviction": conviction
+        }
+        
+        return report
+
+    def run_analysis(self, ticker: str) -> Dict:
+        """
+        Main entry point.
+        """
+        try:
+            logger.info(f"Starting Smart Flow Analysis for {ticker}")
+            if not self.chromadb or not self.chromadb.collection:
+                logger.error("ChromaDB collection not available")
+                return {"error": "Knowledge Base not available"}
+
+            # 1. Get Documents (Use the fallback scan logic to get raw text)
+            results = self.chromadb.collection.get(limit=5) # Get last 5 docs
+            
+            full_text = ""
+            if results and results.get('documents'):
+                full_text = "\n".join(results['documents'])
+            else:
+                logger.warning("No documents found in Knowledge Base")
+                return {"error": "No data available in Knowledge Base. Please upload documents."}
+                
+            # 2. Parse
+            df = self._parse_document_to_dataframe(full_text)
+            logger.info(f"Parsed {len(df)} rows from documents")
+            
+            # 3. Analyze
+            report = self.analyze_flow(ticker, df)
+            
+            # If analysis failed, bubble up the error
+            if "error" in report:
+                return {"error": report["error"]}
             
             return {
-                "symbol": ticker.upper(),
-                "start_date": start_date,
-                "end_date": end_date,
-                "summary": summary_list,
-                "events": events_list,
-                "timestamp": datetime.now().isoformat()
+                "flow_report": report,
+                "raw_data_points": len(df)
             }
             
         except Exception as e:
-            logger.error(f"Error running event study for {ticker}: {e}", exc_info=True)
-            return {
-                "error": f"Failed to run event study: {str(e)}"
-            }
+            logger.error(f"Smart Flow Error: {e}", exc_info=True)
+            return {"error": str(e)}
 
+# Replace the global instance
+# We will monkey-patch or replace the EventStudyService class with this one
+# to avoid changing all imports in api/stock.py for now.
+# Or better: We rename the class in this file to EventStudyService but change its methods.
 
-# Global event study service instance
-event_study_service = EventStudyService()
+event_study_service = SmartFlowService() 
+# Note: This breaks the 'run_event_study' interface! 
+# API calls `event_study_service.run_event_study(...)`.
+# I must implement `run_event_study` in `SmartFlowService` to maintain API compatibility 
+# while returning the new data payload.
 
+class AdapterService(SmartFlowService):
+    HOLIDAYS = {} # Placeholder to prevent API crash
+
+    def run_event_study(self, ticker: str, *args, **kwargs) -> Dict:
+        # Ignore date args, just run flow analysis
+        result = self.run_analysis(ticker)
+        
+        if result is None:
+             return {"symbol": ticker, "error": "Internal Error: Analysis returned None"}
+
+        # If error, ensure symbol is present
+        if "error" in result:
+            result["symbol"] = ticker
+            return result
+
+        # Wrap in a structure that might not break existing typing if strictly checked,
+        # but frontend will be updated to read 'flow_report'.
+        return {
+            "symbol": ticker,
+            "flow_report": result["flow_report"],
+            "timestamp": datetime.now().isoformat()
+        }
+
+event_study_service = AdapterService()

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export function MarketTime() {
   const [time, setTime] = useState<string>("");
@@ -31,8 +32,6 @@ export function MarketTime() {
       } else if (hours >= 9 && hours < 16) {
         if (hours === 9 && minutes < 30) {
           setStatus("premarket");
-        } else if (hours === 15 && minutes >= 30) {
-          setStatus("open");
         } else {
           setStatus("open");
         }
@@ -55,27 +54,52 @@ export function MarketTime() {
   }, []);
 
   const statusConfig = {
-    open: { text: "Market Open", color: "text-green-600", bgColor: "bg-green-50", dotColor: "bg-green-500" },
-    closed: { text: "Market Closed", color: "text-slate-600", bgColor: "bg-slate-50", dotColor: "bg-slate-400" },
-    premarket: { text: "Pre-Market", color: "text-blue-600", bgColor: "bg-blue-50", dotColor: "bg-blue-500" },
-    afterhours: { text: "After Hours", color: "text-amber-600", bgColor: "bg-amber-50", dotColor: "bg-amber-500" },
+    open: { 
+      text: "Market Open", 
+      color: "text-[#34c759]", 
+      bgColor: "bg-[#34c759]/10", 
+      borderColor: "border-[#34c759]/20",
+      dotColor: "bg-[#34c759]" 
+    },
+    closed: { 
+      text: "Market Closed", 
+      color: "text-[#ff3b30]", 
+      bgColor: "bg-[#ff3b30]/10", 
+      borderColor: "border-[#ff3b30]/20",
+      dotColor: "bg-[#ff3b30]" 
+    },
+    premarket: { 
+      text: "Pre-Market", 
+      color: "text-[#ff9500]", 
+      bgColor: "bg-[#ff9500]/10", 
+      borderColor: "border-[#ff9500]/20",
+      dotColor: "bg-[#ff9500]" 
+    },
+    afterhours: { 
+      text: "After Hours", 
+      color: "text-[#ff9500]", 
+      bgColor: "bg-[#ff9500]/10", 
+      borderColor: "border-[#ff9500]/20",
+      dotColor: "bg-[#ff9500]" 
+    },
   };
 
   const config = statusConfig[status];
 
-  const borderColor = status === 'open' ? 'border-green-200' : status === 'premarket' ? 'border-blue-200' : status === 'afterhours' ? 'border-amber-200' : 'border-slate-200';
-
   return (
-    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${config.bgColor} border ${borderColor}`}>
-      <Clock className={`h-3.5 w-3.5 ${config.color}`} />
+    <div className={cn(
+      "flex items-center gap-2 px-3 py-1.5 rounded border font-mono transition-colors",
+      config.bgColor,
+      config.borderColor
+    )}>
+      <Clock className={cn("h-3.5 w-3.5", config.color)} />
       <div className="flex items-center gap-2">
-        <span className={`text-xs font-semibold ${config.color}`}>{time}</span>
-        <div className="flex items-center gap-1.5">
-          <div className={`h-1.5 w-1.5 rounded-full ${config.dotColor} animate-pulse`} />
-          <span className={`text-xs font-medium ${config.color}`}>{config.text}</span>
+        <span className={cn("text-xs font-bold", config.color)}>{time}</span>
+        <div className="hidden sm:flex items-center gap-1.5 border-l border-white/10 pl-2">
+          <div className={cn("h-1.5 w-1.5 rounded-full animate-pulse", config.dotColor)} />
+          <span className={cn("text-[10px] font-bold uppercase tracking-wider", config.color)}>{config.text}</span>
         </div>
       </div>
     </div>
   );
 }
-

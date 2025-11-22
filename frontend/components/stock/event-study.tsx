@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card } from "@/components/ui/card";
+import { Card, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { ErrorMessage } from "@/components/ui/error-message";
 import { getEventStudy, EventStudyResponse } from "@/lib/stock-api";
 import { cn } from "@/lib/utils";
+import { FileText, Network, Zap, RefreshCw, TrendingUp, TrendingDown, Activity, AlertTriangle, Gauge } from "lucide-react";
 
 interface EventStudyProps {
   symbol: string;
@@ -20,291 +21,203 @@ export function EventStudy({ symbol, startDate, endDate, windows }: EventStudyPr
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await getEventStudy(symbol, startDate, endDate, windows);
-        if (result.error) {
-          setError(result.error);
-        } else {
-          setData(result);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to fetch event study data");
-      } finally {
-        setLoading(false);
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await getEventStudy(symbol, startDate, endDate, windows);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setData(result);
       }
-    };
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch event study data");
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     if (symbol) {
       fetchData();
     }
   }, [symbol, startDate, endDate, windows]);
 
-  if (loading) {
-    return (
-      <Card className="trading-panel p-6 border border-[#2d3237] bg-[#1a1e23]">
-        <div className="flex items-center justify-center py-8">
-          <Spinner />
-          <span className="ml-2 text-[#dcdcdc]">Loading event study analysis...</span>
-        </div>
-      </Card>
-    );
-  }
-
-  // Show research insights even if there's an error or no calculated data
-  const hasResearchInsights = data?.research_insights && Object.keys(data.research_insights).length > 0;
-  const hasCalculatedData = data?.summary && data.summary.length > 0;
-
-  if (error && !hasResearchInsights) {
-    return (
-      <Card className="trading-panel p-6 border border-[#ff3b30] bg-[#2d1f1f]">
-        <ErrorMessage message={error || "Unknown error"} />
-      </Card>
-    );
-  }
-
-  if (!data) {
-    return (
-      <Card className="trading-panel p-6 border border-[#2d3237] bg-[#1a1e23]">
-        <p className="text-[#969696]">No data available.</p>
-      </Card>
-    );
-  }
-
-  // Group summary by holiday (if calculated data exists)
-  const groupedByHoliday = hasCalculatedData ? data.summary!.reduce((acc, item) => {
-      if (!acc[item.holiday]) {
-        acc[item.holiday] = [];
-      }
-      acc[item.holiday]!.push(item);
-    return acc;
-  }, {} as Record<string, typeof data.summary>) : {};
-
-  // Format holiday names for display
-  const formatHolidayName = (name: string) => {
-    return name
-      .split("_")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(" ");
+  const formatCurrency = (val: number) => {
+    if (val >= 1000000) return `$${(val / 1000000).toFixed(1)}M`;
+    if (val >= 1000) return `$${(val / 1000).toFixed(0)}K`;
+    return `$${val}`;
   };
 
-  // Determine significance badge
-  const getSignificanceBadge = (pValue: number) => {
-    if (pValue < 0.01) {
-      return <Badge className="bg-red-500">***</Badge>;
-    } else if (pValue < 0.05) {
-      return <Badge className="bg-orange-500">**</Badge>;
-    } else if (pValue < 0.1) {
-      return <Badge className="bg-yellow-500">*</Badge>;
-    }
-    return <Badge variant="outline">ns</Badge>;
-  };
-
+  // RENDER
   return (
-    <Card className="trading-panel p-6 border border-[#2d3237] bg-[#1a1e23]">
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold text-[#dcdcdc] uppercase tracking-tight">Holiday Correlation Analysis: {data.symbol}</h2>
-          {data.start_date && data.end_date && (
-            <p className="text-sm text-[#969696] mt-1 trading-number">
-              Period: {new Date(data.start_date).toLocaleDateString()} -{" "}
-              {new Date(data.end_date).toLocaleDateString()}
-            </p>
-          )}
-          {data.error && (
-            <div className="mt-2 p-3 bg-[#2d1f1f] border border-[#ff3b30] rounded">
-              <p className="text-sm text-[#ff6b6b]">{data.error}</p>
+    <Card className="trading-panel p-0 border border-[#2d3237] bg-[#1a1e23] overflow-hidden">
+        {/* Header with Knowledge Base Badge */}
+        <div className="p-4 border-b border-white/5 flex items-center justify-between bg-white/5">
+            <div>
+                <CardTitle className="text-sm font-bold text-[#dcdcdc] uppercase tracking-widest flex items-center gap-2">
+                    <Network className="h-4 w-4 text-[#34c759]" />
+                    Smart Flow Analysis
+                </CardTitle>
+                <p className="text-[10px] text-gray-500 font-mono mt-1">
+                    Parsing institutional order flow for directional bias
+                </p>
             </div>
-          )}
+            <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-2">
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => fetchData()}
+                        disabled={loading}
+                        className="h-6 w-6 text-gray-500 hover:text-[#34c759]"
+                        title="Refresh Analysis"
+                    >
+                        <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+                    </Button>
+                    <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px] h-5 px-2">
+                        <FileText className="w-3 h-3 mr-1" />
+                        LINKED: KNOWLEDGE BASE
+                    </Badge>
+                </div>
+                <span className="text-[9px] text-gray-500 font-mono uppercase tracking-wider flex items-center">
+                    <Zap className="h-2 w-2 mr-1 text-[#34c759]" />
+                    Storage: Persistent
+                </span>
+            </div>
         </div>
 
-        {/* Research-Based Insights */}
-        {hasResearchInsights && (
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-semibold mb-3 text-[#007aff] uppercase tracking-wide">
-                📊 Research-Based Historical Correlations
-              </h3>
-              <p className="text-sm text-[#969696] mb-4">
-                Based on academic research from 1928-2024 across major markets (U.S., U.K., Japan)
-              </p>
-            </div>
-
-            {data.research_insights && Object.entries(data.research_insights).map(([holidayKey, insights]: [string, any]) => (
-              <div key={holidayKey} className="border border-[#2d3237] rounded p-4 bg-[#23272c]">
-                <h4 className="font-semibold mb-2 text-[#007aff]">{insights.holiday}</h4>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm font-medium text-[#dcdcdc] uppercase tracking-wide">Effect Type:</p>
-                    <p className="text-sm text-[#969696]">{insights.effect_type}</p>
-                  </div>
-                  
-                  <div>
-                    <p className="text-sm font-medium text-[#dcdcdc] uppercase tracking-wide">Historical Performance:</p>
-                    <ul className="text-sm text-[#969696] list-disc list-inside space-y-1 mt-1">
-                      {Object.entries(insights.historical_performance).map(([period, perf]: [string, any]) => (
-                        <li key={period}>
-                          <span className="font-medium capitalize">{period.replace('_', ' ')}:</span> {perf}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div>
-                    <p className="text-sm font-medium text-[#dcdcdc] uppercase tracking-wide">Key Research Findings:</p>
-                    <ul className="text-sm text-[#969696] list-disc list-inside space-y-1 mt-1">
-                      {insights.key_findings.map((finding: string, idx: number) => (
-                        <li key={idx}>{finding}</li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="flex gap-2 text-xs">
-                    <Badge variant="outline" className="border-[#2d3237] text-[#969696]">Research Period: {insights.research_period}</Badge>
-                    <Badge variant="outline" className="border-[#2d3237] text-[#969696]">Confidence: {insights.confidence_level}</Badge>
+        {/* Content Body */}
+        <div className="p-4">
+            {loading ? (
+                <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                  <Spinner />
+                  <div className="text-center space-y-1">
+                    <p className="text-[#dcdcdc] font-mono text-xs animate-pulse">Initializing Neural Flow Engine...</p>
+                    <p className="text-gray-600 text-[10px]">Parsing options chain artifacts...</p>
                   </div>
                 </div>
-              </div>
-            ))}
+            ) : error || !data?.flow_report ? (
+                 // Error state with Instructions
+                 <div className="text-center py-8 space-y-3">
+                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-white/5 mb-2 border border-white/5">
+                        <FileText className="h-5 w-5 text-gray-500" />
+                    </div>
+                    <h3 className="text-[#dcdcdc] font-mono text-sm font-bold tracking-wider">AWAITING DATA INGESTION</h3>
+                    <div className="text-xs text-gray-500 max-w-xs mx-auto font-mono space-y-2 text-left bg-black/20 p-3 rounded border border-white/5">
+                        <p className="text-gray-400 border-b border-white/5 pb-1 mb-2 font-bold">OPERATIONAL PROTOCOL:</p>
+                        <p>1. Upload PDF/CSV (Option Flow) to Knowledge Base.</p>
+                        <p>2. System extracts 'Flow Events' for {symbol}.</p>
+                        <p>3. Click Refresh to run analysis.</p>
+                    </div>
+                    {error && <p className="text-red-500 text-xs mt-2">{error}</p>}
+                 </div>
+            ) : (
+                <div className="space-y-6">
+                    {/* 1. Main Bias Header */}
+                    <div className="flex items-center justify-between p-4 rounded-lg border border-white/5 bg-gradient-to-r from-white/5 to-transparent">
+                        <div>
+                            <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1">Flow Bias</div>
+                            <div className={cn(
+                                "text-2xl font-bold font-mono flex items-center gap-2",
+                                data.flow_report.bias === "BULLISH" ? "text-[#34c759]" :
+                                data.flow_report.bias === "BEARISH" ? "text-[#ff3b30]" : "text-yellow-500"
+                            )}>
+                                {data.flow_report.bias}
+                                {data.flow_report.bias === "BULLISH" ? <TrendingUp className="h-6 w-6" /> : 
+                                 data.flow_report.bias === "BEARISH" ? <TrendingDown className="h-6 w-6" /> : 
+                                 <Activity className="h-6 w-6" />}
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1">Flow Score</div>
+                            <div className="text-xl font-mono text-[#dcdcdc]">{data.flow_report.flow_score.toFixed(2)}</div>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1">Conviction</div>
+                            <Badge variant="outline" className={cn(
+                                "border-0 text-xs font-bold",
+                                data.flow_report.aggression_ratio > 0.6 ? "bg-[#34c759]/20 text-[#34c759]" : "bg-gray-500/20 text-gray-400"
+                            )}>
+                                {data.flow_report.conviction}
+                            </Badge>
+                        </div>
+                    </div>
 
-            {/* General Findings */}
-            {data.general_findings && data.general_findings.length > 0 && (
-              <div className="border-t border-[#2d3237] pt-4 mt-4">
-                <h4 className="font-semibold mb-2 text-[#dcdcdc] uppercase tracking-wide">General Holiday Effect Findings:</h4>
-                <ul className="text-sm text-[#969696] list-disc list-inside space-y-1">
-                  {data.general_findings.map((finding: string, idx: number) => (
-                    <li key={idx}>{finding}</li>
-                  ))}
-                </ul>
-              </div>
+                    {/* 2. Metrics Grid */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="p-3 rounded border border-white/5 bg-black/20">
+                            <div className="text-[10px] text-gray-500 uppercase mb-2">Net Premium</div>
+                            <div className="flex justify-between items-end mb-1">
+                                <span className="text-xs text-[#34c759]">Calls</span>
+                                <span className="text-sm font-mono text-[#dcdcdc]">{formatCurrency(data.flow_report.call_premium)}</span>
+                            </div>
+                            <div className="flex justify-between items-end">
+                                <span className="text-xs text-[#ff3b30]">Puts</span>
+                                <span className="text-sm font-mono text-[#dcdcdc]">{formatCurrency(data.flow_report.put_premium)}</span>
+                            </div>
+                            {/* Mini Bar Chart */}
+                            <div className="mt-2 h-1.5 w-full bg-[#2d3237] rounded-full overflow-hidden flex">
+                                <div 
+                                    className="h-full bg-[#34c759]" 
+                                    style={{ width: `${(data.flow_report.call_premium / (data.flow_report.call_premium + data.flow_report.put_premium || 1)) * 100}%` }}
+                                />
+                                <div 
+                                    className="h-full bg-[#ff3b30]" 
+                                    style={{ width: `${(data.flow_report.put_premium / (data.flow_report.call_premium + data.flow_report.put_premium || 1)) * 100}%` }}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="p-3 rounded border border-white/5 bg-black/20">
+                            <div className="text-[10px] text-gray-500 uppercase mb-2">Aggression Ratio</div>
+                            <div className="flex items-center justify-between mb-2">
+                                <Gauge className="h-4 w-4 text-blue-400" />
+                                <span className="text-xl font-mono text-[#dcdcdc]">{Math.round(data.flow_report.aggression_ratio * 100)}%</span>
+                            </div>
+                            <p className="text-[9px] text-gray-600">
+                                % of sweeps executing at Ask or Above (Sign of urgency)
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* 3. Key Insights */}
+                    <div className="space-y-2">
+                        <h4 className="text-xs font-bold text-[#dcdcdc] uppercase tracking-wide flex items-center gap-2">
+                            <Activity className="h-3 w-3 text-[#007aff]" />
+                            Flow Profile
+                        </h4>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="p-2 bg-white/5 rounded border border-white/5">
+                                <span className="text-gray-500 block mb-1">Dominant Expiry</span>
+                                <span className="font-mono text-[#dcdcdc]">{data.flow_report.dominant_expiry}</span>
+                            </div>
+                            {/* Placeholder for Top Strikes if we had them parsed */}
+                            {/* 
+                            <div className="p-2 bg-white/5 rounded border border-white/5">
+                                <span className="text-gray-500 block mb-1">Top Strikes</span>
+                                <span className="font-mono text-[#dcdcdc]">--</span>
+                            </div> 
+                            */}
+                        </div>
+                    </div>
+
+                    {/* 4. Recommendation */}
+                    <div className="p-3 rounded bg-blue-500/5 border border-blue-500/20">
+                        <div className="flex items-start gap-2">
+                            <AlertTriangle className="h-4 w-4 text-blue-400 mt-0.5" />
+                            <div>
+                                <div className="text-[10px] font-bold text-blue-400 uppercase tracking-wide mb-1">AI Recommendation</div>
+                                <p className="text-xs text-[#dcdcdc] leading-relaxed font-mono">
+                                    {data.flow_report.recommendation}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
-
-            {/* Disclaimers */}
-            {data.disclaimers && data.disclaimers.length > 0 && (
-              <div className="border-t border-[#2d3237] pt-4 mt-4">
-                <h4 className="font-semibold mb-2 text-[#ff9500] uppercase tracking-wide">Important Disclaimers:</h4>
-                <ul className="text-xs text-[#ffb84d] list-disc list-inside space-y-1">
-                  {data.disclaimers.map((disclaimer: string, idx: number) => (
-                    <li key={idx}>{disclaimer}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Calculated Data (if available) */}
-        {hasCalculatedData && (
-          <div className="space-y-4 border-t border-[#2d3237] pt-6">
-            <h3 className="text-lg font-semibold text-[#dcdcdc] uppercase tracking-wide">Calculated Event Study Results</h3>
-
-            {/* Summary Statistics by Holiday */}
-            <div className="space-y-4">
-              <h4 className="text-md font-semibold text-[#dcdcdc] uppercase tracking-wide">Summary Statistics by Holiday</h4>
-              {Object.entries(groupedByHoliday).map(([holiday, items]) => (
-            <div key={holiday} className="border border-[#2d3237] rounded p-4 bg-[#23272c]">
-              <h4 className="font-semibold mb-3 text-[#007aff] uppercase tracking-wide">
-                {formatHolidayName(holiday)}
-              </h4>
-              <div className="overflow-x-auto">
-                <table className="trading-table w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-[#2d3237]">
-                      <th className="text-left p-2 text-[#969696] uppercase tracking-wide">Window</th>
-                      <th className="text-right p-2 text-[#969696] uppercase tracking-wide">Count</th>
-                      <th className="text-right p-2 text-[#969696] uppercase tracking-wide">Mean Return</th>
-                      <th className="text-right p-2 text-[#969696] uppercase tracking-wide">Std Dev</th>
-                      <th className="text-right p-2 text-[#969696] uppercase tracking-wide">t-stat</th>
-                      <th className="text-right p-2 text-[#969696] uppercase tracking-wide">p-value</th>
-                      <th className="text-center p-2 text-[#969696] uppercase tracking-wide">Significance</th>
-                    </tr>
-                  </thead>
-                    <tbody>
-                      {items?.map((item, idx) => (
-                      <tr key={idx} className="border-b border-[#2d3237] hover:bg-[#23272c]">
-                        <td className="p-2 font-mono text-[#dcdcdc]">{item.window}</td>
-                        <td className="text-right p-2 trading-number text-[#dcdcdc]">{item.count}</td>
-                        <td
-                          className={cn(
-                            "text-right p-2 font-semibold trading-number",
-                            item.mean > 0 ? "gain" : "loss"
-                          )}
-                        >
-                          {(item.mean * 100).toFixed(4)}%
-                        </td>
-                        <td className="text-right p-2 trading-number text-[#dcdcdc]">{(item.std * 100).toFixed(4)}%</td>
-                        <td className="text-right p-2 trading-number text-[#dcdcdc]">{item.t_stat?.toFixed(4) || "N/A"}</td>
-                        <td className="text-right p-2 trading-number text-[#dcdcdc]">{item.bootstrap_p?.toFixed(4) || "N/A"}</td>
-                        <td className="text-center p-2">
-                          {item.bootstrap_p ? getSignificanceBadge(item.bootstrap_p) : "N/A"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ))}
         </div>
-
-        {/* Legend */}
-        <div className="border-t border-[#2d3237] pt-4">
-          <p className="text-xs text-[#969696]">
-            <strong>Significance levels:</strong> *** p &lt; 0.01, ** p &lt; 0.05, * p &lt; 0.1, ns = not significant
-          </p>
-          <p className="text-xs text-[#969696] mt-1">
-            <strong>Window format:</strong> Days relative to event (e.g., "-5..5" means 5 days before to 5 days after)
-          </p>
-        </div>
-
-            {/* Event Details (Optional - can be collapsed) */}
-            {data.events && data.events.length > 0 && (
-          <details className="border-t border-[#2d3237] pt-4">
-            <summary className="cursor-pointer font-semibold text-sm text-[#007aff] hover:text-[#34c759] uppercase tracking-wide">
-              View Individual Event Returns ({data.events.length} events)
-            </summary>
-            <div className="mt-4 max-h-96 overflow-y-auto">
-              <table className="trading-table w-full text-xs">
-                <thead className="sticky top-0 bg-[#23272c]">
-                  <tr className="border-b border-[#2d3237]">
-                    <th className="text-left p-2 text-[#969696] uppercase tracking-wide">Holiday</th>
-                    <th className="text-left p-2 text-[#969696] uppercase tracking-wide">Event Date</th>
-                    <th className="text-left p-2 text-[#969696] uppercase tracking-wide">Window</th>
-                    <th className="text-right p-2 text-[#969696] uppercase tracking-wide">Cumulative Return</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.events.map((event, idx) => (
-                    <tr key={idx} className="border-b border-[#2d3237] hover:bg-[#23272c]">
-                      <td className="p-2 text-[#dcdcdc]">{formatHolidayName(event.holiday)}</td>
-                      <td className="p-2 trading-number text-[#dcdcdc]">{new Date(event.event_date).toLocaleDateString()}</td>
-                      <td className="p-2 font-mono text-[#dcdcdc]">{event.window}</td>
-                      <td
-                        className={cn(
-                          "text-right p-2 font-semibold trading-number",
-                          event.cum_return && event.cum_return > 0
-                            ? "gain"
-                            : "loss"
-                        )}
-                      >
-                        {event.cum_return !== null && event.cum_return !== undefined
-                          ? `${(event.cum_return * 100).toFixed(4)}%`
-                          : "N/A"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            </details>
-            )}
-          </div>
-        )}
-      </div>
     </Card>
   );
 }
-

@@ -69,35 +69,29 @@ export interface HistoricalPriceRange {
   error?: string;
 }
 
-export interface EventStudySummary {
-  holiday: string;
-  window: string;
-  count: number;
-  mean: number;
-  std: number;
-  t_stat: number;
-  bootstrap_p: number;
-  n: number;
-}
-
-export interface EventStudyEvent {
-  holiday: string;
-  event_date: string;
-  window: string;
-  cum_return: number;
+export interface FlowBiasReport {
+  symbol: string;
+  bias: "BULLISH" | "BEARISH" | "NEUTRAL";
+  flow_score: number;
+  aggression_ratio: number;
+  call_premium: number;
+  put_premium: number;
+  dominant_expiry: string;
+  recommendation: string;
+  conviction: string;
 }
 
 export interface EventStudyResponse {
   symbol: string;
-  start_date?: string;
-  end_date?: string;
-  summary?: EventStudySummary[];
-  events?: EventStudyEvent[];
-  research_insights?: Record<string, any>;
-  general_findings?: string[];
-  disclaimers?: string[];
+  flow_report?: FlowBiasReport;
+  raw_data_points?: number;
   timestamp?: string;
   error?: string;
+  // Legacy fields (kept optional for backward compat if needed, though unused now)
+  start_date?: string;
+  end_date?: string;
+  summary?: any[];
+  events?: any[];
 }
 
 /**

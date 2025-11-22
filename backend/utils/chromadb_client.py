@@ -35,6 +35,7 @@ class ChromaDBClient:
             "chroma_db"
         )
         os.makedirs(self.persist_directory, exist_ok=True)
+        print(f"ChromaDB Persistence Path: {self.persist_directory}")
         
         # Initialize ChromaDB client with persistent storage
         self.client = chromadb.PersistentClient(
@@ -137,6 +138,36 @@ class ChromaDBClient:
             print(f"Error searching: {e}")
             raise
     
+    def query_documents(
+        self,
+        query_text: str,
+        n_results: int = 10,
+        where: Optional[Dict] = None,
+        where_document: Optional[Dict] = None
+    ) -> Dict:
+        """
+        Query documents using raw ChromaDB query (for getting raw text/metadata).
+        
+        Args:
+            query_text: Text to query
+            n_results: Number of results
+            where: Metadata filter
+            where_document: Document content filter
+            
+        Returns:
+            Dictionary with 'documents', 'metadatas', 'distances'
+        """
+        try:
+            return self.collection.query(
+                query_texts=[query_text],
+                n_results=n_results,
+                where=where,
+                where_document=where_document
+            )
+        except Exception as e:
+            print(f"Error querying documents: {e}")
+            raise
+
     def get_retriever(self, k: int = 4):
         """
         Get a LangChain retriever for RAG.
@@ -156,6 +187,14 @@ class ChromaDBClient:
         try:
             self.client.delete_collection(name=self.collection_name)
             self._initialize_collection()
+            
+            # Re-initialize vectorstore as it might hold reference to old collection
+            self.vectorstore = Chroma(
+                client=self.client,
+                collection_name=self.collection_name,
+                embedding_function=self.embeddings,
+                persist_directory=self.persist_directory
+            )
         except Exception as e:
             print(f"Error deleting collection: {e}")
             raise

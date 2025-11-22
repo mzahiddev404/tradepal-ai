@@ -144,3 +144,19 @@ export async function getCollectionInfo(): Promise<{
   return await response.json();
 }
 
+/**
+ * Clear the Knowledge Base
+ */
+export async function clearKnowledgeBase(): Promise<{ message: string }> {
+  const response = await fetch(`${API_URL}/api/knowledge-base`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: "Deletion failed" }));
+    throw new Error(errorData.detail || `Deletion failed: ${response.status}`);
+  }
+
+  return await response.json();
+}
+

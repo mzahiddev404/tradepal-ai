@@ -4,7 +4,7 @@ PDF upload API endpoints.
 import os
 import tempfile
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
-from typing import Optional
+from typing import Optional, Dict
 from models.upload import UploadResponse, CollectionInfoResponse
 try:
     from utils.data_ingestion import ingestion_pipeline
@@ -38,23 +38,24 @@ async def upload_pdf(
         )
     try:
         # Validate file type
-        if not file.filename.endswith('.pdf'):
+        if not (file.filename.endswith('.pdf') or file.filename.endswith('.csv')):
             raise HTTPException(
                 status_code=400,
-                detail="Only PDF files are supported"
+                detail="Only PDF and CSV files are supported"
             )
         
-        # Create temporary file to save uploaded PDF
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+        # Create temporary file to save uploaded file
+        suffix = '.pdf' if file.filename.endswith('.pdf') else '.csv'
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
             # Read uploaded file content
             content = await file.read()
             tmp_file.write(content)
             tmp_file_path = tmp_file.name
         
         try:
-            # Ingest PDF into ChromaDB
-            result = ingestion_pipeline.ingest_pdf(
-                pdf_path=tmp_file_path,
+            # Ingest File into ChromaDB
+            result = ingestion_pipeline.ingest_file(
+                file_path=tmp_file_path,
                 document_type=document_type
             )
             
@@ -66,7 +67,7 @@ async def upload_pdf(
             
             return UploadResponse(
                 status="success",
-                message=f"PDF processed and ingested successfully",
+                message=f"File processed and ingested successfully",
                 document_id=result.get("document_id"),
                 chunks_ingested=result.get("chunks_ingested"),
                 source_file=result.get("source_file"),
@@ -83,7 +84,7 @@ async def upload_pdf(
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Error processing PDF upload: {str(e)}"
+            detail=f"Error processing file upload: {str(e)}"
         )
 
 
@@ -121,6 +122,33 @@ async def get_collection_info():
         raise HTTPException(
             status_code=500,
             detail=f"Error getting collection info: {str(e)}"
+        )
+
+
+@router.delete("/knowledge-base", response_model=Dict[str, str])
+async def clear_knowledge_base():
+    """
+    Clear all documents from the Knowledge Base.
+    """
+    if not INGESTION_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Feature not available. ChromaDB is not installed."
+        )
+    try:
+        result = ingestion_pipeline.clear_knowledge_base()
+        if result.get("status") == "error":
+            raise HTTPException(
+                status_code=500,
+                detail=result.get("error", "Unknown error clearing Knowledge Base")
+            )
+        return {"message": "Knowledge Base cleared successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error clearing Knowledge Base: {str(e)}"
         )
 
 

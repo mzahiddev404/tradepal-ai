@@ -64,22 +64,26 @@ export function StockQuoteDisplay({ quote }: StockQuoteProps) {
             <p className="text-xs text-[#969696] uppercase tracking-wide">Previous Close</p>
             <p className="font-semibold trading-number text-[#dcdcdc]">${quote.previous_close?.toFixed(2) || "N/A"}</p>
           </div>
-          <div>
-            <p className="text-xs text-[#969696] uppercase tracking-wide">Volume</p>
-            <p className="font-semibold trading-number text-[#dcdcdc]">
-              {quote.volume
-                ? new Intl.NumberFormat().format(quote.volume)
-                : "N/A"}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-[#969696] uppercase tracking-wide">52W High</p>
-            <p className="font-semibold trading-number text-[#dcdcdc]">${quote.high_52w?.toFixed(2) || "N/A"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-[#969696] uppercase tracking-wide">52W Low</p>
-            <p className="font-semibold trading-number text-[#dcdcdc]">${quote.low_52w?.toFixed(2) || "N/A"}</p>
-          </div>
+          {quote.volume && quote.volume > 0 && (
+            <div>
+              <p className="text-xs text-[#969696] uppercase tracking-wide">Volume</p>
+              <p className="font-semibold trading-number text-[#dcdcdc]">
+                {new Intl.NumberFormat().format(quote.volume)}
+              </p>
+            </div>
+          )}
+          {quote.high_52w && quote.high_52w > 0 && (
+            <div>
+                <p className="text-xs text-[#969696] uppercase tracking-wide">52W High</p>
+                <p className="font-semibold trading-number text-[#dcdcdc]">${quote.high_52w?.toFixed(2)}</p>
+            </div>
+          )}
+          {quote.low_52w && quote.low_52w > 0 && (
+            <div>
+                <p className="text-xs text-[#969696] uppercase tracking-wide">52W Low</p>
+                <p className="font-semibold trading-number text-[#dcdcdc]">${quote.low_52w?.toFixed(2)}</p>
+            </div>
+          )}
         </div>
       </div>
     </Card>

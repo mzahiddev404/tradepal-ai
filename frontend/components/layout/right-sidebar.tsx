@@ -29,15 +29,13 @@ interface StockQuote {
 
 export function RightSidebar() {
   const [isOpen, setIsOpen] = useState(true);
-  const [cryptoData, setCryptoData] = useState<CryptoPrice[]>([]);
   const [stockData, setStockData] = useState<StockQuote[]>([]);
-  const [loading, setLoading] = useState(true);
   const [stockLoading, setStockLoading] = useState(true);
-  const [error, setError] = useState(false);
   const [stockError, setStockError] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string>("");
   const [latency, setLatency] = useState<number>(0);
   const [apiUsage, setApiUsage] = useState<any>(null);
+  const [marketStatus, setMarketStatus] = useState({ status: "CLOSED", color: "text-[#ff3b30]" });
 
   // Format date to Eastern Time
   const formatEasternTime = (date: Date) => {
@@ -50,95 +48,40 @@ export function RightSidebar() {
     }) + " EST";
   };
 
-  // Fetch Live Crypto Prices
-  useEffect(() => {
-    const abortController = new AbortController();
-    
-    const fetchCrypto = async () => {
-      const startTime = performance.now();
-      try {
-        setError(false);
-        
-        // Expanded list of hyped coins
-        const coins = [
-            'bitcoin',
-            'ethereum',
-            'solana',
-            'dogecoin',
-            'xrp',
-            'cardano',
-            'shiba-inu',
-            'pepe',
-            'sui',
-            'bonk'
-        ].join(',');
+  // Helper to determine Market Status based on ET
+  const getMarketStatus = () => {
+    const now = new Date();
+    // Convert current time to ET
+    const etTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const day = etTime.getDay(); // 0 = Sun, 6 = Sat
+    const hour = etTime.getHours();
+    const minute = etTime.getMinutes();
+    const timeInMinutes = hour * 60 + minute;
 
-        // Strategy 1: Try Server Proxy first (avoids CORS)
-        try {
-            const response = await fetch("/api/market", {
-                signal: abortController.signal
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data.data) {
-                    setCryptoData(data.data);
-                    updateStatus(startTime);
-                    return; // Success!
-                }
-            }
-        } catch (e) {
-            console.warn("Server proxy fetch failed, trying direct...", e);
-        }
+    // Weekend
+    if (day === 0 || day === 6) return { status: "CLOSED", color: "text-[#ff3b30]" };
 
-        // Strategy 2: Fallback to Client-Side Direct Fetch (CoinCap)
-        try {
-            const response = await fetch(`https://api.coincap.io/v2/assets?ids=${coins}`, {
-                signal: abortController.signal
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data.data) {
-                    setCryptoData(data.data);
-                    updateStatus(startTime);
-                    return; // Success!
-                }
-            }
-        } catch (e) {
-            console.warn("CoinCap fallback failed, trying CoinGecko...", e);
-        }
+    // Market Hours: 9:30 AM - 4:00 PM ET (570 - 960 minutes)
+    const marketOpen = 9 * 60 + 30;
+    const marketClose = 16 * 60;
 
-      } catch (err: any) {
-        if (err.name === 'AbortError') return;
-        console.warn("Market data fetch failed (all methods):", err.message);
-        setError(true);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const updateStatus = (startTime: number) => {
-        const now = new Date();
-        setLastUpdated(`${now.toLocaleDateString("en-US", { timeZone: "America/New_York" })} ${formatEasternTime(now)}`);
-        const endTime = performance.now();
-        setLatency(Math.round(endTime - startTime));
-    };
-
-    fetchCrypto();
-    const interval = setInterval(fetchCrypto, 15000); 
-    
-    return () => {
-        clearInterval(interval);
-        abortController.abort();
-    };
-  }, []);
+    if (timeInMinutes >= marketOpen && timeInMinutes < marketClose) {
+        return { status: "OPEN", color: "text-[#34c759]" };
+    } else if (timeInMinutes >= (4 * 60) && timeInMinutes < marketOpen) {
+         return { status: "PRE-MARKET", color: "text-yellow-500" };
+    } else if (timeInMinutes >= marketClose && timeInMinutes < (20 * 60)) {
+         return { status: "AFTER-HOURS", color: "text-yellow-500" };
+    } else {
+         return { status: "CLOSED", color: "text-[#ff3b30]" };
+    }
+  };
 
   // Fetch Live Stock Prices and API Usage
   useEffect(() => {
     const abortController = new AbortController();
     
     const fetchStocksAndLimits = async () => {
+      const startTime = performance.now();
       try {
         setStockError(false);
         
@@ -151,6 +94,7 @@ export function RightSidebar() {
             const data = await stockResponse.json();
             if (Array.isArray(data)) {
               setStockData(data);
+              updateStatus(startTime);
             }
         } else {
             throw new Error("Failed to fetch stocks");
@@ -176,6 +120,14 @@ export function RightSidebar() {
       } finally {
         setStockLoading(false);
       }
+    };
+
+    const updateStatus = (startTime: number) => {
+        const now = new Date();
+        setLastUpdated(`${now.toLocaleDateString("en-US", { timeZone: "America/New_York" })} ${formatEasternTime(now)}`);
+        const endTime = performance.now();
+        setLatency(Math.round(endTime - startTime));
+        setMarketStatus(getMarketStatus());
     };
 
     fetchStocksAndLimits();
@@ -236,75 +188,6 @@ export function RightSidebar() {
 
       <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
         
-        {/* Live Crypto Ticker */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <Link href="/market" className="group flex items-center gap-2 cursor-pointer">
-                <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest group-hover:text-[#34c759] transition-colors">Live Crypto</h3>
-            </Link>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-[9px] h-4 px-1 border-white/10 bg-white/5 text-gray-400">
-                CoinCap
-              </Badge>
-              <div className="flex items-center gap-1">
-                <span className={cn(
-                  "w-1.5 h-1.5 rounded-full animate-pulse",
-                  error ? "bg-yellow-500" : "bg-[#34c759]"
-                )}></span>
-                <span className={cn(
-                  "text-[10px]",
-                  error ? "text-yellow-500" : "text-[#34c759]"
-                )}>{error ? "RECONNECTING..." : "LIVE"}</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            {loading && cryptoData.length === 0 ? (
-              <div className="text-xs text-gray-500 font-mono text-center py-4">Initializing Feed...</div>
-            ) : (
-              cryptoData.map((coin) => {
-                const price = parseFloat(coin.priceUsd);
-                const change = parseFloat(coin.changePercent24Hr);
-                const isPositive = change >= 0;
-
-                // Format small prices (like SHIB/PEPE) with more decimals
-                const formatPrice = (p: number) => {
-                    if (p < 0.01) return p.toFixed(6);
-                    if (p < 1) return p.toFixed(4);
-                    return p.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                };
-
-                return (
-                  <div key={coin.id} className="flex items-center justify-between p-2 rounded border border-white/5 bg-white/5 hover:bg-white/10 transition-colors group cursor-default">
-                    <div className="flex items-center gap-2">
-                      <div className={cn(
-                        "w-1 h-8 rounded-full transition-colors",
-                        isPositive ? "bg-[#34c759]" : "bg-[#ff3b30]"
-                      )}></div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold text-[#dcdcdc]">{coin.symbol}</span>
-                          <span className="text-[10px] text-gray-500">{coin.name}</span>
-                        </div>
-                        <div className="text-[10px] text-gray-400 font-mono">
-                          ${formatPrice(price)}
-                        </div>
-                      </div>
-                    </div>
-                    <div className={cn(
-                      "text-[10px] font-bold font-mono px-1.5 py-0.5 rounded",
-                      isPositive ? "text-[#34c759] bg-[#34c759]/10" : "text-[#ff3b30] bg-[#ff3b30]/10"
-                    )}>
-                      {isPositive ? "+" : ""}{change.toFixed(2)}%
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
         {/* Live Equities Ticker */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
@@ -365,7 +248,7 @@ export function RightSidebar() {
           
           {lastUpdated && (
             <div className="flex items-center justify-end gap-1.5 mt-2">
-              {error && <WifiOff className="h-3 w-3 text-yellow-500" />}
+              {stockError && <WifiOff className="h-3 w-3 text-yellow-500" />}
               <div className="text-[9px] text-gray-600 font-mono text-right">
                 {lastUpdated}
               </div>
@@ -390,7 +273,7 @@ export function RightSidebar() {
                 </div>
                 <div className="flex items-center justify-between">
                     <span className="text-[10px] text-gray-500 uppercase">Market Status</span>
-                    <span className="text-[10px] text-[#34c759] font-mono">OPEN</span>
+                    <span className={cn("text-[10px] font-mono", marketStatus.color)}>{marketStatus.status}</span>
                 </div>
                 
                 {/* API Usage Stats */}

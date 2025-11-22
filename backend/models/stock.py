@@ -70,9 +70,26 @@ class HistoricalPriceRangeResponse(BaseModel):
     error: Optional[str] = None
 
 
+class FlowBiasReport(BaseModel):
+    """Model for Smart Flow Analysis bias report."""
+    symbol: str
+    bias: str
+    flow_score: float
+    aggression_ratio: float
+    call_premium: Optional[float] = None
+    put_premium: Optional[float] = None
+    dominant_expiry: Optional[str] = None
+    key_strikes: Optional[List[str]] = None
+    notable_programs: Optional[List[str]] = None
+    recommendation: Optional[str] = None
+    conviction: Optional[str] = None
+
+
 class EventStudyResponse(BaseModel):
     """Response model for event study analysis."""
     symbol: str
+    flow_report: Optional[FlowBiasReport] = None
+    raw_data_points: Optional[int] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     summary: Optional[List[Dict[str, Any]]] = None

@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Upload, X, File, AlertCircle } from "lucide-react";
+import { Upload, X, File, AlertCircle, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { uploadPDF } from "@/lib/api";
+import { uploadPDF, clearKnowledgeBase } from "@/lib/api";
 import { formatFileSize } from "@/lib/format";
 
 interface UploadedFile {
@@ -27,11 +27,34 @@ interface PDFUploadProps {
 export function PDFUpload({ onUploadComplete, maxSizeMB = 10 }: PDFUploadProps) {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+  const [shouldReplace, setShouldReplace] = useState(true); // Default to replace for better UX
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const handleClearKnowledgeBase = async () => {
+    if (!confirm("Are you sure you want to delete all documents from the Knowledge Base? This action cannot be undone.")) {
+      return;
+    }
+    
+    setIsClearing(true);
+    try {
+      await clearKnowledgeBase();
+      setFiles([]); // Clear local file list
+      alert("Knowledge Base cleared successfully.");
+    } catch (error) {
+      alert(`Failed to clear Knowledge Base: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   const validateFile = useCallback((file: File): string | null => {
-    if (file.type !== "application/pdf") {
-      return "Only PDF files are allowed";
+    // Allow PDF or CSV
+    const allowedTypes = ["application/pdf", "text/csv", "application/vnd.ms-excel"]; // ms-excel sometimes used for CSV
+    const isCSV = file.name.toLowerCase().endsWith('.csv');
+    
+    if (!allowedTypes.includes(file.type) && !isCSV) {
+      return "Only PDF or CSV files are allowed";
     }
 
     const maxSize = maxSizeMB * 1024 * 1024;
@@ -134,6 +157,20 @@ export function PDFUpload({ onUploadComplete, maxSizeMB = 10 }: PDFUploadProps) 
   const handleFiles = useCallback(async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
 
+    // If Replace Mode is active, clear KB first
+    if (shouldReplace) {
+        try {
+            setIsClearing(true);
+            await clearKnowledgeBase();
+            setFiles([]); // Clear previous list from UI
+        } catch (e) {
+            console.error("Failed to clear KB before upload", e);
+            // Continue anyway? Or stop? Let's continue but warn.
+        } finally {
+            setIsClearing(false);
+        }
+    }
+
     const newFiles: UploadedFile[] = Array.from(fileList).map((file) => {
       const error = validateFile(file);
       return {
@@ -154,7 +191,7 @@ export function PDFUpload({ onUploadComplete, maxSizeMB = 10 }: PDFUploadProps) 
         await uploadFile(fileData.id, fileList);
       }
     }
-  }, [validateFile, uploadFile]);
+  }, [validateFile, uploadFile, shouldReplace]);
 
   const removeFile = useCallback((fileId: string) => {
     setFiles((prev) => prev.filter((f) => f.id !== fileId));
@@ -196,19 +233,19 @@ export function PDFUpload({ onUploadComplete, maxSizeMB = 10 }: PDFUploadProps) 
         <input
           ref={fileInputRef}
           type="file"
-          accept="application/pdf"
+          accept=".pdf,.csv"
           multiple
           onChange={handleFileInput}
           className="hidden"
-          aria-label="Upload PDF files"
+          aria-label="Upload PDF or CSV files"
         />
 
         <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-[#34c759] to-[#28a745] flex items-center justify-center shadow-lg border-2 border-[#28a745]">
           <Upload className="h-8 w-8 text-white" aria-hidden="true" />
         </div>
-        <h3 className="mt-4 text-base font-bold text-[#dcdcdc]">Upload PDF Documents</h3>
+        <h3 className="mt-4 text-base font-bold text-[#dcdcdc] font-mono uppercase tracking-wide">Upload Documents</h3>
         <p className="mt-2 text-sm text-[#9ca3af]">
-          Drag and drop PDF files here, or click to browse
+          Drag and drop PDF or CSV files here, or click to browse
         </p>
         <p className="mt-1 text-xs text-[#6a6a6a]">
           Maximum file size: {maxSizeMB}MB
@@ -220,7 +257,41 @@ export function PDFUpload({ onUploadComplete, maxSizeMB = 10 }: PDFUploadProps) 
         >
           Select Files
         </Button>
+
+        <div className="mt-6 p-3 bg-blue-900/10 border border-blue-500/20 rounded text-xs text-left flex gap-2 items-start">
+          <AlertCircle className="h-4 w-4 text-blue-400 flex-shrink-0 mt-0.5" />
+          <p className="text-blue-300/80 leading-relaxed">
+            <strong className="text-blue-400 font-medium">Tip:</strong> After uploading PDFs/CSVs, you can ask questions about their content in the chat or run Smart Flow Analysis. The AI will retrieve relevant signals from your documents.
+          </p>
+        </div>
       </Card>
+
+      {/* Controls Row */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+            <input 
+                type="checkbox" 
+                id="replace-kb" 
+                checked={shouldReplace} 
+                onChange={(e) => setShouldReplace(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-[#34c759] focus:ring-[#34c759] bg-[#23272c] border-[#2d3237]"
+            />
+            <label htmlFor="replace-kb" className="text-xs text-gray-400 cursor-pointer select-none">
+                Replace existing Knowledge Base (Fresh Analysis)
+            </label>
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs text-red-400 border-red-500/20 hover:bg-red-500/10 hover:text-red-300"
+          onClick={handleClearKnowledgeBase}
+          disabled={isClearing}
+        >
+          <Trash2 className="h-3.5 w-3.5 mr-2" />
+          {isClearing ? "Clearing..." : "Clear Knowledge Base"}
+        </Button>
+      </div>
 
       {/* File List */}
       {files.length > 0 && (
@@ -259,9 +330,20 @@ export function PDFUpload({ onUploadComplete, maxSizeMB = 10 }: PDFUploadProps) 
                   )}
 
                   {file.status === "success" && (
-                    <Badge variant="default" className="mt-2 bg-[#1a2e1a] text-[#34c759] border-[#34c759]/30">
-                      Uploaded
-                    </Badge>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-[9px] font-mono uppercase tracking-wider">
+                      <div className="bg-[#1a2e1a] border border-[#34c759]/30 p-2 rounded flex flex-col items-center text-center">
+                        <span className="text-[#34c759] font-bold mb-1">STATUS</span>
+                        <span className="text-[#dcdcdc]">ACTIVE</span>
+                      </div>
+                      <div className="bg-blue-900/10 border border-blue-500/30 p-2 rounded flex flex-col items-center text-center">
+                        <span className="text-blue-400 font-bold mb-1">STORAGE</span>
+                        <span className="text-[#dcdcdc]">PERSISTENT</span>
+                      </div>
+                      <div className="bg-black/20 border border-white/5 p-2 rounded flex flex-col items-center text-center">
+                        <span className="text-gray-500 font-bold mb-1">SCOPE</span>
+                        <span className="text-[#dcdcdc]">CHAT + FLOW</span>
+                      </div>
+                    </div>
                   )}
 
                   {file.status === "error" && (
